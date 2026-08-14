@@ -81,10 +81,16 @@ function makeConfigRoutes(service: OcgoUsageService): WebRoute[] {
   const read = (): unknown => maskedConfigView()
   const write = async (req: IncomingMessage): Promise<unknown> => {
     const body = (await readJsonBody(req)) as { cookie?: unknown; workspaceID?: unknown }
-    const view = writeConfigFile({
-      cookie: typeof body.cookie === 'string' ? body.cookie : null,
-      workspaceID: typeof body.workspaceID === 'string' ? body.workspaceID : null,
-    })
+    // Distinguish "field absent" (keep current) from "field null/empty"
+    // (clear it): only keys PRESENT in the body are touched.
+    const partial: { cookie?: string | null; workspaceID?: string | null } = {}
+    if ('cookie' in body) {
+      partial.cookie = typeof body.cookie === 'string' ? body.cookie : null
+    }
+    if ('workspaceID' in body) {
+      partial.workspaceID = typeof body.workspaceID === 'string' ? body.workspaceID : null
+    }
+    const view = writeConfigFile(partial)
     service.invalidateCache()
     return view
   }

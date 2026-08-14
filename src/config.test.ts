@@ -193,4 +193,18 @@ describe('masked config view + write', () => {
     expect(raw.cacheTTL).toBe(120)
     expect(raw.cookie).toBeUndefined()
   })
+
+  it('keeps fields absent from the write untouched (no accidental clear)', () => {
+    writeFileSync(join(tmp, 'ocgo-usage.json'), JSON.stringify({
+      cookie: 'auth=Fe26.2*keepme; oc_locale=zh',
+      workspaceID: 'wrk_keep',
+    }))
+    // Only workspaceID is present in the partial; cookie must survive.
+    const view = writeConfigFile({ workspaceID: 'wrk_new3' })
+    expect(view.workspaceID).toEqual({ set: true, tail: 'wrk_new3'.slice(-4) })
+    expect(view.cookie).toEqual({ set: true, tail: 'oc_locale=zh'.slice(-4) })
+    const raw = JSON.parse(readFileSync(join(tmp, 'ocgo-usage.json'), 'utf8'))
+    expect(raw.cookie).toBe('auth=Fe26.2*keepme; oc_locale=zh')
+    expect(raw.workspaceID).toBe('wrk_new3')
+  })
 })
