@@ -32,7 +32,7 @@ export const en = {
   'ocgo.noconfig': 'Not configured: set OPENCODE_GO_COOKIE and OPENCODE_GO_WORKSPACE_ID (or $DSH_HOME/ocgo-usage.json)',
   'ocgo.refresh': 'Refresh',
   'ocgo.fetchedAt': 'upd {time}',
-  'ocgo.rolling': '5h rolling',
+  'ocgo.rolling': '5h Rolling',
   'ocgo.weekly': 'Weekly',
   'ocgo.monthly': 'Monthly',
   'ocgo.rateLimited': 'rate-limited',
