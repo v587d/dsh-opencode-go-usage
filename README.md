@@ -5,12 +5,12 @@ A [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (dsh) bund
 The Web counterpart of the [pi-ocgo-usage](https://github.com/v587d/pi-ocgo-usage) Pi extension: three usage windows (rolling 5h, weekly, monthly) with percentages and reset countdowns, color-coded so you see a window approaching exhaustion before you hit the rate limit mid-work.
 
 ```
-OC.go: 5h 0% (1h 23m) · wk 65% (2d 20h) · mo 83% (6d 21h) · Updated 20:15
+OC.go: 5h 0% (1h 23m) · wk 65% (2d 20h) · mo 83% (6d 21h) · upd 20:15
 ```
 
 - **Three windows** — rolling (5h) / weekly / monthly percent + reset countdown
 - **Color thresholds** — muted → warning (≥80%) → error (≥90% or rate-limited)
-- **Data freshness** — `Updated HH:MM` shows the last successful fetch time
+- **Data freshness** — `upd HH:MM` shows the last successful fetch time
 - **Non-intrusive** — the chip polls the host every 30 s (and on tab refocus); the host caches for 300 s (TTL configurable) with a 60 s failure cooldown, so opencode.ai is never hammered
 - **Click to expand** — per-window detail panel with reset countdowns and a manual refresh
 - **Graceful degradation** — missing config shows `<err:noconfig>`, HTTP failures `<err:httpXXX>`
