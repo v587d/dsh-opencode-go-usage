@@ -1,6 +1,6 @@
 /**
  * Unit tests for the provider matcher.
- * @module dsh-opencode-go-usage/provider.test
+ * @module dsh-ocgo-usage/provider.test
  */
 
 import { describe, expect, it } from 'vitest'

@@ -1,6 +1,6 @@
 /**
  * Unit tests for the cached usage service.
- * @module dsh-opencode-go-usage/service.test
+ * @module dsh-ocgo-usage/service.test
  */
 
 import { mkdtempSync, rmSync } from 'node:fs'
@@ -29,7 +29,7 @@ describe('OcgoUsageService', () => {
   beforeEach(() => {
     process.env[ENV_COOKIE] = 'auth=Fe26.2*test; oc_locale=zh'
     process.env[ENV_WORKSPACE_ID] = 'wrk_test'
-    tmp = mkdtempSync(join(tmpdir(), 'dsh-opencode-go-usage-svc-'))
+    tmp = mkdtempSync(join(tmpdir(), 'dsh-ocgo-usage-svc-'))
     process.env.DSH_HOME = tmp
     ctx = new Context()
   })

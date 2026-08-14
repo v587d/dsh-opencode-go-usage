@@ -1,7 +1,7 @@
 /**
  * Package invariants — cheap structural checks run at import time on the
  * host side. Mirrors the pattern used by other dsh plugin packages.
- * @module dsh-opencode-go-usage/invariant
+ * @module dsh-ocgo-usage/invariant
  */
 
 import { DEFAULT_BASE_URL, DEFAULT_CACHE_TTL, DEFAULT_TIMEOUT_MS } from './config.ts'
@@ -9,7 +9,7 @@ import { DEFAULT_BASE_URL, DEFAULT_CACHE_TTL, DEFAULT_TIMEOUT_MS } from './confi
 /** Assert a condition; throws a descriptive Error when violated. */
 export function invariant(condition: unknown, message: string): asserts condition {
   if (!condition) {
-    throw new Error(`[dsh-opencode-go-usage] ${message}`)
+    throw new Error(`[dsh-ocgo-usage] ${message}`)
   }
 }
 

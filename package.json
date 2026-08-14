@@ -1,5 +1,5 @@
 {
-  "name": "dsh-opencode-go-usage",
+  "name": "dsh-ocgo-usage",
   "description": "OpenCode Go subscription usage readout for the dsh web GUI: rolling (5h), weekly, and monthly usage windows with reset countdowns in the composer dock.",
   "version": "0.1.0",
   "type": "module",

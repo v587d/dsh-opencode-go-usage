@@ -2,7 +2,7 @@
 
 English | [中文](README.md)
 
-[![npm](https://img.shields.io/npm/v/dsh-opencode-go-usage)](https://www.npmjs.com/package/dsh-opencode-go-usage)
+[![npm](https://img.shields.io/npm/v/dsh-ocgo-usage)](https://www.npmjs.com/package/dsh-ocgo-usage)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 ![Footer demo](assets/custom-footer.png)
@@ -49,14 +49,16 @@ Because `lib/` is committed, pnpm installs the built package directly and never 
 ### From npm (after a release)
 
 ```sh
-dsh plugin --profile web add dsh-opencode-go-usage
+dsh plugin --profile web add dsh-ocgo-usage
 ```
+
+> **About the name:** the repo is `dsh-opencode-go-usage`, but that npm name is already taken by a similar third-party plugin, so the npm package publishes as `dsh-ocgo-usage`. GitHub installs (recommended) are unaffected: `dsh plugin --profile web add github:v587d/dsh-opencode-go-usage`.
 
 ### From a tarball
 
 ```sh
-pnpm pack            # in this repo → dsh-opencode-go-usage-0.1.0.tgz
-dsh plugin --profile web add ./dsh-opencode-go-usage-0.1.0.tgz
+pnpm pack            # in this repo → dsh-ocgo-usage-0.1.0.tgz
+dsh plugin --profile web add ./dsh-ocgo-usage-0.1.0.tgz
 ```
 
 ### From a local checkout (development)
@@ -72,7 +74,7 @@ dsh plugin --profile web add link:$(pwd)
 **Restart `dsh web`, then refresh the page.** The usage chip appears in the composer dock next to the conversation stats line. Verify the plugin layer is composed without booting:
 
 ```sh
-dsh --profile web --dump-config   # shows a "# == dsh-opencode-go-usage" layer
+dsh --profile web --dump-config   # shows a "# == dsh-ocgo-usage" layer
 ```
 
 ## Configuration

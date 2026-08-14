@@ -3,7 +3,7 @@
  * aliases consume this list so their module identities cannot drift.
  * Copied verbatim from dsh-balance-meter (which copied it from the DSH
  * checkout's `packages/client/web-platform.ts`) for the rc.6 shell.
- * @module dsh-opencode-go-usage/web-platform
+ * @module dsh-ocgo-usage/web-platform
  */
 
 /** The module specifiers the shell shares into the frozen module table. */

@@ -1,5 +1,5 @@
 /**
- * Configuration loader for dsh-opencode-go-usage
+ * Configuration loader for dsh-ocgo-usage
  *
  * Priority: env vars > config file ($DSH_HOME/ocgo-usage.json) > built-in defaults
  *
@@ -12,7 +12,7 @@
  *
  * The browser config editor (`/api/ocgo-usage/config`) reads a MASKED view
  * (never the full cookie) and writes back through {@link writeConfigFile}.
- * @module dsh-opencode-go-usage/config
+ * @module dsh-ocgo-usage/config
  */
 import type { MaskedConfigView, MaskedSecret, OcgoConfig } from './types.ts';
 export declare const ENV_COOKIE = "OPENCODE_GO_COOKIE";

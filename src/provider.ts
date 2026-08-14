@@ -1,7 +1,7 @@
 /**
- * Provider matching for dsh-opencode-go-usage: decide when the chip should show.
+ * Provider matching for dsh-ocgo-usage: decide when the chip should show.
  * Pure and shared so the client logic is unit-testable without a browser.
- * @module dsh-opencode-go-usage/provider
+ * @module dsh-ocgo-usage/provider
  */
 
 /** The provider whose model selection shows the chip. */

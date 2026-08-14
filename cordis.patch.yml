@@ -1,4 +1,4 @@
-# dsh-opencode-go-usage bundle patch: inserts its plugin row into the web profile
+# dsh-ocgo-usage bundle patch: inserts its plugin row into the web profile
 # roster. The bundle is the official dsh plugin shape — install it with
 # `dsh plugin --profile web add <path-or-git-url>`.
 #
@@ -7,4 +7,4 @@
 # usage readout, via the dsh.client declaration in package.json).
 - insert:
     - id: ocgo-usage
-      name: 'dsh-opencode-go-usage'
+      name: 'dsh-ocgo-usage'

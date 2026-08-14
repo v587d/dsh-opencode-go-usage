@@ -2,7 +2,7 @@
 
 [English](README.en.md) | 中文
 
-[![npm](https://img.shields.io/npm/v/dsh-opencode-go-usage)](https://www.npmjs.com/package/dsh-opencode-go-usage)
+[![npm](https://img.shields.io/npm/v/dsh-ocgo-usage)](https://www.npmjs.com/package/dsh-ocgo-usage)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 ![Footer demo](assets/custom-footer.png)
@@ -49,14 +49,16 @@ dsh plugin --profile web add github:v587d/dsh-opencode-go-usage
 ### 从 npm 安装（发布后）
 
 ```sh
-dsh plugin --profile web add dsh-opencode-go-usage
+dsh plugin --profile web add dsh-ocgo-usage
 ```
+
+> **关于包名：** 仓库名为 `dsh-opencode-go-usage`，但 npm 上同名包已被他人抢先占用（一个功能类似的第三方插件），因此 npm 发布名定为 `dsh-ocgo-usage`。GitHub 安装（推荐）不受影响：`dsh plugin --profile web add github:v587d/dsh-opencode-go-usage`。
 
 ### 从 tarball 安装
 
 ```sh
-pnpm pack            # 在本仓库内 → dsh-opencode-go-usage-0.1.0.tgz
-dsh plugin --profile web add ./dsh-opencode-go-usage-0.1.0.tgz
+pnpm pack            # 在本仓库内 → dsh-ocgo-usage-0.1.0.tgz
+dsh plugin --profile web add ./dsh-ocgo-usage-0.1.0.tgz
 ```
 
 ### 本地开发安装
@@ -72,7 +74,7 @@ dsh plugin --profile web add link:$(pwd)
 **重启 `dsh web` 并刷新页面**，chip 出现在输入框上方的 dock。不启动即可验证插件层已组合：
 
 ```sh
-dsh --profile web --dump-config   # 应显示 "# == dsh-opencode-go-usage" 层
+dsh --profile web --dump-config   # 应显示 "# == dsh-ocgo-usage" 层
 ```
 
 ## 配置

@@ -1,5 +1,5 @@
 /**
- * dsh-opencode-go-usage browser half — registers the OpenCode Go usage chip into
+ * dsh-ocgo-usage browser half — registers the OpenCode Go usage chip into
  * the composer dock band (`conversation.composer.dock`, the same seat the
  * official conversation stats line uses) and reads the host's same-origin
  * `/api/ocgo-usage` JSON endpoints: poll the host snapshot (every 10 s),
@@ -15,7 +15,7 @@
  * which is why visibility does not ride the usage endpoint. The chip renders
  * nothing while the current provider is not `opencode-go`, mirroring
  * pi-ocgo-usage.
- * @module dsh-opencode-go-usage/client
+ * @module dsh-ocgo-usage/client
  */
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client';
 import { type OcgoKey } from './locales.ts';
@@ -24,7 +24,7 @@ export { OcgoDockEntry, formatDuration } from './OcgoDockEntry.tsx';
 export type { OcgoDockEntryProps } from './OcgoDockEntry.tsx';
 declare module '@deepseek-ai/dsh-client-ui-slots' {
     interface LocaleNamespaceMap {
-        /** dsh-opencode-go-usage chip copy. */
+        /** dsh-ocgo-usage chip copy. */
         ocgo: OcgoKey;
     }
 }
