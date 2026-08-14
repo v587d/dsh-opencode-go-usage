@@ -89,7 +89,7 @@ Click the chip to expand → `set` (bottom-left) → type the workspace id and c
 ### Option 2: environment variables (same names as pi-ocgo-usage)
 
 ```sh
-export OPENCODE_GO_COOKIE="auth=Fe26.2*...; oc_locale=zh"
+export OPENCODE_GO_COOKIE="auth=Fe26.2*...; oc_locale=en"
 export OPENCODE_GO_WORKSPACE_ID="wrk_01XXXXXXXXXXXXXXXXXXXXXXXX"
 ```
 
@@ -99,7 +99,7 @@ Write `$DSH_HOME/ocgo-usage.json` (default `~/.dsh/ocgo-usage.json`):
 
 ```jsonc
 {
-  "cookie": "auth=Fe26.2*...; oc_locale=zh",
+  "cookie": "auth=Fe26.2*...; oc_locale=en",
   "workspaceID": "wrk_01XXXXXXXXXXXXXXXXXXXXXXXX"
 }
 ```

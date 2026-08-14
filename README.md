@@ -89,7 +89,7 @@ dsh --profile web --dump-config   # 应显示 "# == dsh-ocgo-usage" 层
 ### 方式二：环境变量（与 pi-ocgo-usage 同名）
 
 ```sh
-export OPENCODE_GO_COOKIE="auth=Fe26.2*...; oc_locale=zh"
+export OPENCODE_GO_COOKIE="auth=Fe26.2*...; oc_locale=en"
 export OPENCODE_GO_WORKSPACE_ID="wrk_01XXXXXXXXXXXXXXXXXXXXXXXX"
 ```
 
@@ -99,7 +99,7 @@ export OPENCODE_GO_WORKSPACE_ID="wrk_01XXXXXXXXXXXXXXXXXXXXXXXX"
 
 ```jsonc
 {
-  "cookie": "auth=Fe26.2*...; oc_locale=zh",
+  "cookie": "auth=Fe26.2*...; oc_locale=en",
   "workspaceID": "wrk_01XXXXXXXXXXXXXXXXXXXXXXXX"
 }
 ```
