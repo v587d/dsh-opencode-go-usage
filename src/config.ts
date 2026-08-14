@@ -9,13 +9,16 @@
  *
  * Env var names match the pi-ocgo-usage extension so one shell profile works
  * for both agents.
+ *
+ * The browser config editor (`/api/ocgo-usage/config`) reads a MASKED view
+ * (never the full cookie) and writes back through {@link writeConfigFile}.
  * @module dsh-ocgo-usage/config
  */
 
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import type { OcgoConfig } from './types.ts'
+import type { MaskedConfigView, MaskedSecret, OcgoConfig } from './types.ts'
 
 export const ENV_COOKIE = 'OPENCODE_GO_COOKIE'
 export const ENV_WORKSPACE_ID = 'OPENCODE_GO_WORKSPACE_ID'
@@ -82,6 +85,57 @@ export function loadConfig(): OcgoConfig {
   )
 
   return { cookie, workspaceID, baseUrl, cacheTTL, timeoutMs }
+}
+
+/** Mask the last 4 characters of a secret for the browser (full value when ≤ 4 chars). */
+export function maskSecret(value: string | undefined): MaskedSecret {
+  if (value === undefined || value.length === 0) return { set: false, tail: '' }
+  return { set: true, tail: value.length <= 4 ? value : value.slice(-4) }
+}
+
+/** The browser-facing masked config view (never reveals the full cookie). */
+export function maskedConfigView(): MaskedConfigView {
+  const cfg = loadConfig()
+  return {
+    workspaceID: maskSecret(cfg.workspaceID),
+    cookie: maskSecret(cfg.cookie),
+  }
+}
+
+/**
+ * Write cookie / workspaceID into the config file (preserving any other
+ * fields), chmod 600, and return the updated masked view. Values are
+ * normalized like env input (cookie gets `auth=` prefixed when pasted bare).
+ * Empty/absent fields are left untouched; pass `null` to clear a field.
+ */
+export function writeConfigFile(partial: {
+  cookie?: string | null
+  workspaceID?: string | null
+}): MaskedConfigView {
+  const file = readFileConfig() ?? {}
+  const next: Record<string, unknown> = { ...file }
+  if (partial.workspaceID !== undefined) {
+    const v = typeof partial.workspaceID === 'string' ? partial.workspaceID.trim() : ''
+    if (v.length > 0) next.workspaceID = v
+    else delete next.workspaceID
+  }
+  if (partial.cookie !== undefined) {
+    const v = typeof partial.cookie === 'string' ? normalizeCookie(partial.cookie) : undefined
+    if (v !== undefined && v.length > 0) next.cookie = v
+    else delete next.cookie
+  }
+  const path = configFilePath()
+  try {
+    writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 })
+  } catch {
+    // Fall back to the env/current effective values rather than throwing to
+    // the browser with a partial write.
+    return maskedConfigView()
+  }
+  return {
+    workspaceID: maskSecret(typeof next.workspaceID === 'string' ? next.workspaceID : undefined),
+    cookie: maskSecret(typeof next.cookie === 'string' ? next.cookie : undefined),
+  }
 }
 
 function readFileConfig(): FileConfig | null {

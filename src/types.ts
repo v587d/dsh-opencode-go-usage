@@ -60,3 +60,17 @@ export interface OcgoUsageView {
   /** Human-readable failure detail (never contains the cookie). */
   readonly message?: string
 }
+
+/** One masked secret field for the browser config editor (never the full value). */
+export interface MaskedSecret {
+  /** Whether a value is currently set (env or config file). */
+  readonly set: boolean
+  /** The last 4 characters of the value (full value when ≤ 4 chars). */
+  readonly tail: string
+}
+
+/** The browser-facing config view: which fields are set, masked. */
+export interface MaskedConfigView {
+  readonly workspaceID: MaskedSecret
+  readonly cookie: MaskedSecret
+}

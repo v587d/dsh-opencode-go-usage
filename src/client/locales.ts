@@ -22,6 +22,11 @@ export const zh = {
   'ocgo.expand': '展开用量详情',
   'ocgo.collapse': '收起',
   'ocgo.sep': '·',
+  'ocgo.set': '设置',
+  'ocgo.save': '保存',
+  'ocgo.workspaceID': 'workspace id',
+  'ocgo.cookie': 'cookie',
+  'ocgo.setHint': '点击外部或按 Esc 保存',
 } as const
 
 /** English copy. */
@@ -40,6 +45,11 @@ export const en = {
   'ocgo.expand': 'Show usage details',
   'ocgo.collapse': 'Collapse',
   'ocgo.sep': '·',
+  'ocgo.set': 'Set',
+  'ocgo.save': 'Save',
+  'ocgo.workspaceID': 'workspace id',
+  'ocgo.cookie': 'cookie',
+  'ocgo.setHint': 'click outside or press Esc to save',
 } as const
 
 /** Key type of the dictionary (for the LocaleNamespaceMap merge). */

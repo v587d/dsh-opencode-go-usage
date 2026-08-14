@@ -3,7 +3,7 @@
  * @module dsh-ocgo-usage/config.test
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
@@ -17,7 +17,10 @@ import {
   ENV_TIMEOUT_MS,
   ENV_WORKSPACE_ID,
   loadConfig,
+  maskSecret,
+  maskedConfigView,
   normalizeCookie,
+  writeConfigFile,
 } from './config.ts'
 
 const ENV_KEYS = [ENV_COOKIE, ENV_WORKSPACE_ID, ENV_BASE_URL, ENV_CACHE_TTL, ENV_TIMEOUT_MS, 'DSH_HOME']
@@ -128,5 +131,66 @@ describe('loadConfig', () => {
     const cfg = loadConfig()
     expect(cfg.cookie).toBeUndefined()
     expect(cfg.baseUrl).toBe(DEFAULT_BASE_URL)
+  })
+})
+
+describe('masked config view + write', () => {
+  let savedEnv: Record<string, string | undefined>
+  let tmp: string
+
+  beforeEach(() => {
+    savedEnv = clearEnv()
+    tmp = mkdtempSync(join(tmpdir(), 'dsh-ocgo-usage-mask-'))
+    process.env.DSH_HOME = tmp
+  })
+
+  afterEach(() => {
+    restoreEnv(savedEnv)
+    rmSync(tmp, { recursive: true, force: true })
+  })
+
+  it('masks the tail of a secret', () => {
+    expect(maskSecret(undefined)).toEqual({ set: false, tail: '' })
+    expect(maskSecret('abcd')).toEqual({ set: true, tail: 'abcd' })
+    expect(maskSecret('Fe26.2*long-value-xyz1')).toEqual({ set: true, tail: 'xyz1' })
+  })
+
+  it('exposes only masked values in the view', () => {
+    const cookie = 'auth=Fe26.2*secret-cookie-9abc; oc_locale=zh'
+    const ws = 'wrk_01XXXXXXXXXXXXXXXXXXXX8q2w'
+    process.env[ENV_COOKIE] = cookie
+    process.env[ENV_WORKSPACE_ID] = ws
+    const view = maskedConfigView()
+    expect(view.cookie).toEqual({ set: true, tail: cookie.slice(-4) })
+    expect(view.workspaceID).toEqual({ set: true, tail: ws.slice(-4) })
+    expect(JSON.stringify(view)).not.toContain('secret-cookie')
+  })
+
+  it('writes new values to the config file and normalizes the cookie', () => {
+    const view = writeConfigFile({ cookie: 'Fe26.2*new', workspaceID: 'wrk_new' })
+    // The written cookie is normalized to "auth=Fe26.2*new; oc_locale=en";
+    // its tail is the whole header's last 4 chars.
+    expect(view.cookie).toEqual({ set: true, tail: 'auth=Fe26.2*new; oc_locale=en'.slice(-4) })
+    expect(view.workspaceID).toEqual({ set: true, tail: 'wrk_new'.slice(-4) })
+    // loadConfig now reads the written file (normalized cookie with auth=).
+    const cfg = loadConfig()
+    expect(cfg.workspaceID).toBe('wrk_new')
+    expect(cfg.cookie).toBe('auth=Fe26.2*new; oc_locale=en')
+  })
+
+  it('preserves other fields and clears a field with null', () => {
+    writeFileSync(join(tmp, 'ocgo-usage.json'), JSON.stringify({
+      cookie: 'auth=Fe26.2*old; oc_locale=zh',
+      workspaceID: 'wrk_old',
+      baseUrl: 'https://example.com',
+      cacheTTL: 120,
+    }))
+    const view = writeConfigFile({ cookie: null, workspaceID: 'wrk_new2' })
+    expect(view.cookie).toEqual({ set: false, tail: '' })
+    expect(view.workspaceID).toEqual({ set: true, tail: 'wrk_new2'.slice(-4) })
+    const raw = JSON.parse(readFileSync(join(tmp, 'ocgo-usage.json'), 'utf8'))
+    expect(raw.baseUrl).toBe('https://example.com')
+    expect(raw.cacheTTL).toBe(120)
+    expect(raw.cookie).toBeUndefined()
   })
 })

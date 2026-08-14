@@ -101,6 +101,28 @@
   font-size: 11px;
 }
 
+/* The right cluster of the footer: `refresh upd HH:MM`, right-aligned. */
+.footRight {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.setBtn {
+  border: 0;
+  background: 0 0;
+  color: var(--dsh-color-accent, rgba(80, 160, 255, 0.9));
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+  text-transform: lowercase;
+}
+
+.setBtn:hover {
+  text-decoration: underline;
+}
+
 .fetchedAt {
   opacity: 0.6;
 }
@@ -116,6 +138,50 @@
 
 .refreshBtn:hover {
   text-decoration: underline;
+}
+
+/* The Set editor panel. */
+.setPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 260px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.fieldLabel {
+  color: var(--dsh-color-text-secondary, inherit);
+  opacity: 0.75;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.fieldInput {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid var(--dsh-color-border, rgba(128, 128, 128, 0.35));
+  background: var(--dsh-color-surface, transparent);
+  color: var(--dsh-color-text, inherit);
+  border-radius: 6px;
+  height: 26px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  outline: none;
+}
+
+.fieldInput:focus {
+  border-color: var(--dsh-color-accent, rgba(80, 160, 255, 0.7));
+}
+
+.setHint {
+  opacity: 0.55;
+  font-size: 11px;
 }
 
 .errorText {

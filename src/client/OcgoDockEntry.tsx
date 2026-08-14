@@ -3,23 +3,28 @@
  * composer dock band (`conversation.composer.dock`) beside the conversation
  * stats line. The chip polls the host `/api/ocgo-usage` endpoint for the
  * three usage windows (rolling 5h / weekly / monthly); clicking reveals
- * per-window reset countdowns and a manual refresh.
+ * per-window reset countdowns, a Set editor (masked workspace/cookie) and a
+ * manual refresh. In the error state, clicking the chip opens the Set editor
+ * directly so a stale credential can be replaced in place.
  * @module dsh-ocgo-usage/client/OcgoDockEntry
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import { isOpenCodeGo } from '../provider.ts'
-import type { OcgoUsageView, UsageWindow, UsageWindowKind } from '../types.ts'
+import type { MaskedConfigView, OcgoUsageView, UsageWindow, UsageWindowKind } from '../types.ts'
 import { NS, type OcgoKey } from './locales.ts'
 import css from './ocgo.module.css'
 
 /** Poll interval for the host snapshot and the live model provider. */
 const POLL_MS = 10_000
 
+/** The masked-prefix shown before the last-4 tail of a secret. */
+const MASK = '••••'
+
 /** Same-origin JSON fetch helper. */
-async function ocgoFetch<T>(path: string): Promise<T> {
-  const response = await fetch(path)
+async function ocgoFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, init)
   if (!response.ok) {
     throw new Error(`ocgo-usage ${path} failed: ${response.status}`)
   }
@@ -30,6 +35,15 @@ async function ocgoFetch<T>(path: string): Promise<T> {
 const ocgoApi = {
   view: () => ocgoFetch<OcgoUsageView>('/api/ocgo-usage'),
   refresh: () => ocgoFetch<OcgoUsageView>('/api/ocgo-usage/refresh'),
+  config: () => ocgoFetch<MaskedConfigView>('/api/ocgo-usage/config'),
+  writeConfig: (partial: { cookie?: string; workspaceID?: string }) => ocgoFetch<MaskedConfigView>(
+    '/api/ocgo-usage/config',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(partial),
+    },
+  ),
 }
 
 /** Composed props of the dock entry (runtime + locale + injected session/provider face). */
@@ -97,6 +111,12 @@ function WindowSegment(props: { window: UsageWindow; sep: string }): React.React
   )
 }
 
+/** The masked display text for one secret field: `••••abcd`. */
+function maskedText(secret: { set: boolean; tail: string } | undefined): string {
+  if (secret === undefined || !secret.set || secret.tail.length === 0) return ''
+  return `${MASK}${secret.tail}`
+}
+
 /**
  * The OpenCode Go usage chip: polls the host snapshot, renders the three
  * windows inline, and expands into a detail panel on click.
@@ -106,15 +126,23 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
   const [view, setView] = useState<OcgoUsageView | null>(null)
   const [open, setOpen] = useState(false)
   const [visible, setVisible] = useState(true)
+  // Panel mode: 'view' = windows + footer; 'set' = workspace/cookie editor.
+  const [mode, setMode] = useState<'view' | 'set'>('view')
+  const [config, setConfig] = useState<MaskedConfigView | null>(null)
+  const [wsDraft, setWsDraft] = useState('')
+  const [cookieDraft, setCookieDraft] = useState('')
   const wrapRef = useRef<HTMLSpanElement>(null)
+  const modeRef = useRef<'view' | 'set'>('view')
+  modeRef.current = mode
+  const draftsRef = useRef({ ws: '', cookie: '' })
+  draftsRef.current = { ws: wsDraft, cookie: cookieDraft }
+  const configRef = useRef<MaskedConfigView | null>(null)
+  configRef.current = config
 
   // One periodic tick:
   //   1. resolve the session's CURRENT provider from the live in-memory
   //      selection (session.models, warm ~ms) and toggle `visible`;
   //   2. only while visible, fetch the usage snapshot.
-  // Switching models mid-session does NOT remount this dock entry, so the
-  // provider is re-derived every poll — /model switches reflect within one
-  // interval (10 s), not just on remount.
   const pollNow = useCallback(() => {
     let live = true
     const provider = props.provider
@@ -153,18 +181,72 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
     }
   }, [pollNow])
 
+  /** Load the masked config into the editor drafts. */
+  const loadConfig = useCallback(() => {
+    ocgoApi.config().then((snapshot) => {
+      setConfig(snapshot)
+      setWsDraft(maskedText(snapshot.workspaceID))
+      setCookieDraft(maskedText(snapshot.cookie))
+    }, () => {
+      // Editor still opens; drafts stay empty.
+      setConfig(null)
+      setWsDraft('')
+      setCookieDraft('')
+    })
+  }, [])
+
+  /** Submit any edited field; returns the write promise (fire-and-forget on blur). */
+  const saveConfig = useCallback((): void => {
+    const current = configRef.current
+    const partial: { cookie?: string; workspaceID?: string } = {}
+    if (current !== null) {
+      const ws = draftsRef.current.ws.trim()
+      if (ws.length > 0 && ws !== maskedText(current.workspaceID)) partial.workspaceID = ws
+      const cookie = draftsRef.current.cookie.trim()
+      if (cookie.length > 0 && cookie !== maskedText(current.cookie)) partial.cookie = cookie
+    } else {
+      // No baseline loaded (fetch failed): send whatever was typed.
+      if (draftsRef.current.ws.trim().length > 0) partial.workspaceID = draftsRef.current.ws.trim()
+      if (draftsRef.current.cookie.trim().length > 0) partial.cookie = draftsRef.current.cookie.trim()
+    }
+    if (Object.keys(partial).length === 0) return
+    ocgoApi.writeConfig(partial).then((snapshot) => {
+      setConfig(snapshot)
+      setWsDraft(maskedText(snapshot.workspaceID))
+      setCookieDraft(maskedText(snapshot.cookie))
+      // New credentials are live now (host invalidated its cache): poll now.
+      pollNow()
+    }, () => {
+      // Ignore; the next poll resyncs and the editor keeps the drafts.
+    })
+  }, [pollNow])
+
+  /** Close the panel; in set mode a blur/close acts as confirm (save). */
+  const closePanel = useCallback((): void => {
+    if (modeRef.current === 'set') saveConfig()
+    setOpen(false)
+    setMode('view')
+  }, [saveConfig])
+
+  /** Open the editor (used by the Set button and the error chip). */
+  const openSet = useCallback((): void => {
+    setMode('set')
+    setOpen(true)
+    loadConfig()
+  }, [loadConfig])
+
   // Close the detail panel when focus leaves the chip: any pointer press
-  // outside the wrapper, or Escape.
+  // outside the wrapper, or Escape. In set mode this CONFIRMS (saves).
   useEffect(() => {
     if (!open) return
     const onPointerDown = (event: PointerEvent): void => {
       const target = event.target as Node | null
       if (target !== null && wrapRef.current !== null && !wrapRef.current.contains(target)) {
-        setOpen(false)
+        closePanel()
       }
     }
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') closePanel()
     }
     document.addEventListener('pointerdown', onPointerDown)
     document.addEventListener('keydown', onKeyDown)
@@ -172,7 +254,7 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
       document.removeEventListener('pointerdown', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [open])
+  }, [open, closePanel])
 
   const refresh = (): void => {
     ocgoApi.refresh().then((snapshot) => {
@@ -190,27 +272,70 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
   // poll interval, so no other provider's user sees OpenCode Go numbers.
   if (!visible) return null
 
-  // Error state: compact `<err:code>` chip; click to force a refresh.
-  if (view === null || view.error !== undefined) {
-    const code = view?.error ?? 'fetch'
-    const title = view?.message ?? t('ocgo.error', { code })
+  const error = view === null ? { code: 'fetch' as const, message: t('ocgo.error', { code: 'fetch' }) }
+    : view.error !== undefined
+      ? { code: view.error, message: view.message ?? t('ocgo.error', { code: view.error }) }
+      : null
+
+  // Error state: the chip opens the Set editor directly so a stale cookie can
+  // be replaced in place; clicking outside (or Esc) confirms the write.
+  if (error !== null) {
     return (
-      <button
-        type="button"
-        className={css.chip}
-        onClick={refresh}
-        title={`${title}\n${t('ocgo.refresh')}`}
-        data-testid="ocgo-chip-error"
-      >
-        {t('ocgo.label')}: &lt;err:{code}&gt;
-      </button>
+      <span className={css.wrap} ref={wrapRef} data-testid="ocgo-chip-error">
+        <button
+          type="button"
+          className={open ? `${css.chip} ${css.chipOpen}` : css.chip}
+          onClick={() => { if (open) closePanel(); else openSet() }}
+          title={`${error.message}\n${t('ocgo.set')}`}
+        >
+          {t('ocgo.label')}: &lt;err:{error.code}&gt;
+        </button>
+        {open && (
+          <span className={css.details}>
+            <span className={css.setPanel}>
+              <label className={css.field}>
+                <span className={css.fieldLabel}>{t('ocgo.workspaceID')}</span>
+                <input
+                  className={css.fieldInput}
+                  value={wsDraft}
+                  placeholder="wrk_…"
+                  spellCheck={false}
+                  autoComplete="off"
+                  onChange={(e) => { setWsDraft(e.target.value) }}
+                  onFocus={(e) => { if (e.target.value === maskedText(config?.workspaceID)) e.target.select() }}
+                />
+              </label>
+              <label className={css.field}>
+                <span className={css.fieldLabel}>{t('ocgo.cookie')}</span>
+                <input
+                  className={css.fieldInput}
+                  value={cookieDraft}
+                  placeholder="auth=…"
+                  spellCheck={false}
+                  autoComplete="off"
+                  onChange={(e) => { setCookieDraft(e.target.value) }}
+                  onFocus={(e) => { if (e.target.value === maskedText(config?.cookie)) e.target.select() }}
+                />
+              </label>
+              <span className={css.foot}>
+                <span className={css.setHint}>{t('ocgo.setHint')}</span>
+                <button type="button" className={css.refreshBtn} onClick={closePanel}>
+                  {t('ocgo.save')}
+                </button>
+              </span>
+            </span>
+          </span>
+        )}
+      </span>
     )
   }
 
+  // TS: after the error early-return, `view` is a non-null success snapshot.
+  const snapshot = view as OcgoUsageView
   const windows: UsageWindow[] = [
-    view.rolling,
-    view.weekly,
-    view.monthly,
+    snapshot.rolling,
+    snapshot.weekly,
+    snapshot.monthly,
   ].filter((w): w is UsageWindow => w !== undefined)
 
   // No windows at all (e.g. brand-new account): show unavailable, refreshable.
@@ -233,40 +358,84 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
       <button
         type="button"
         className={open ? `${css.chip} ${css.chipOpen}` : css.chip}
-        onClick={() => { setOpen((v) => !v) }}
+        onClick={() => { if (open) closePanel(); else setOpen(true) }}
         title={open ? t('ocgo.collapse') : t('ocgo.expand')}
       >
         <span>{t('ocgo.label')}:</span>
         {windows.map((w) => (
           <WindowSegment key={w.kind} window={w} sep={sep} />
         ))}
-        {view.updatedAt !== undefined && (
-          <span className={css.segSep}>{sep}{t('ocgo.fetchedAt', { time: formatClock(view.updatedAt) })}</span>
+        {snapshot.updatedAt !== undefined && (
+          <span className={css.segSep}>{sep}{t('ocgo.fetchedAt', { time: formatClock(snapshot.updatedAt) })}</span>
         )}
       </button>
       {open && (
         <span className={css.details}>
-          {windows.map((w) => (
-            <span key={w.kind} className={css.window}>
-              <span className={css.windowLabel}>
-                {w.status === 'rate-limited' ? t('ocgo.rateLimited') : t(WINDOW_TITLE_KEYS[w.kind])}
+          {mode === 'set' ? (
+            <span className={css.setPanel}>
+              <label className={css.field}>
+                <span className={css.fieldLabel}>{t('ocgo.workspaceID')}</span>
+                <input
+                  className={css.fieldInput}
+                  value={wsDraft}
+                  placeholder="wrk_…"
+                  spellCheck={false}
+                  autoComplete="off"
+                  onChange={(e) => { setWsDraft(e.target.value) }}
+                  onFocus={(e) => { if (e.target.value === maskedText(config?.workspaceID)) e.target.select() }}
+                />
+              </label>
+              <label className={css.field}>
+                <span className={css.fieldLabel}>{t('ocgo.cookie')}</span>
+                <input
+                  className={css.fieldInput}
+                  value={cookieDraft}
+                  placeholder="auth=…"
+                  spellCheck={false}
+                  autoComplete="off"
+                  onChange={(e) => { setCookieDraft(e.target.value) }}
+                  onFocus={(e) => { if (e.target.value === maskedText(config?.cookie)) e.target.select() }}
+                />
+              </label>
+              <span className={css.foot}>
+                <span className={css.setHint}>{t('ocgo.setHint')}</span>
+                <button type="button" className={css.refreshBtn} onClick={closePanel}>
+                  {t('ocgo.save')}
+                </button>
               </span>
-              <span className={css.windowValue}>
-                <span className={severityClass(w) ?? undefined}>{w.percent}%</span>
-                <span className={css.windowReset}>
-                  {t('ocgo.resetsIn', { duration: formatDuration(w.resetInSec) })}
+            </span>
+          ) : (
+            <>
+              {windows.map((w) => (
+                <span key={w.kind} className={css.window}>
+                  <span className={css.windowLabel}>
+                    {w.status === 'rate-limited' ? t('ocgo.rateLimited') : t(WINDOW_TITLE_KEYS[w.kind])}
+                  </span>
+                  <span className={css.windowValue}>
+                    <span className={severityClass(w) ?? undefined}>{w.percent}%</span>
+                    <span className={css.windowReset}>
+                      {t('ocgo.resetsIn', { duration: formatDuration(w.resetInSec) })}
+                    </span>
+                  </span>
+                </span>
+              ))}
+              <span className={css.foot}>
+                <button type="button" className={css.setBtn} onClick={openSet}>
+                  {t('ocgo.set')}
+                </button>
+                <span className={css.footRight}>
+                  <button type="button" className={css.refreshBtn} onClick={refresh}>
+                    {t('ocgo.refresh')}
+                  </button>
+                  {snapshot.updatedAt !== undefined && (
+                    <span className={css.fetchedAt}>
+                      {t('ocgo.fetchedAt', { time: formatClock(snapshot.updatedAt) })}
+                    </span>
+                  )}
                 </span>
               </span>
-            </span>
-          ))}
-          <span className={css.foot}>
-            <span className={css.fetchedAt}>
-              {view.updatedAt !== undefined ? t('ocgo.fetchedAt', { time: formatClock(view.updatedAt) }) : ''}
-            </span>
-            <button type="button" className={css.refreshBtn} onClick={refresh}>
-              {t('ocgo.refresh')}
-            </button>
-          </span>
+            </>
+          )}
         </span>
       )}
     </span>

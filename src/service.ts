@@ -108,6 +108,18 @@ export class OcgoUsageService extends Service {
     return view
   }
 
+  /**
+   * Drop the cached usage, the failure cooldown, and the last error so the
+   * next read re-queries with the freshly written config. Called after a
+   * config edit.
+   */
+  invalidateCache(): void {
+    this.cached = undefined
+    this.cachedAt = 0
+    this.failureUntilMs = 0
+    this.lastError = undefined
+  }
+
   private async query(): Promise<OcgoUsageView> {
     try {
       const data = await fetchUsage(loadConfig())
