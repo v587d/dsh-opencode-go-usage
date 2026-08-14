@@ -42,8 +42,13 @@ const NS = 'ocgo'
 /** Required services: slots for the composer-dock entry, locale for the copy. */
 export const inject = ['slots', 'locale']
 
-/** The injected business face (empty today: visibility + usage ride `/api/ocgo-usage?session=`). */
-export interface OcgoInjected {}
+/** The injected business face: the dock entry's owning session (the slot's
+ * inject factory receives it as its first argument — the sanctioned channel;
+ * PropsRuntime does not reliably carry it for this seat). */
+export interface OcgoInjected {
+  /** The session this dock entry renders for. */
+  dockSessionId: string | undefined
+}
 
 /**
  * Register the usage chip into the composer dock band.
@@ -58,7 +63,7 @@ export function apply(ctx: ClientContext): void {
       id: 'ocgo-usage',
       order: 110,
       locale: NS,
-      inject: (): OcgoInjected => ({}),
+      inject: (sessionId): OcgoInjected => ({ dockSessionId: sessionId }),
     }, OcgoDockEntry), 'dsh-ocgo-usage: chip registration')
   })
 }

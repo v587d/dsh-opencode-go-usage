@@ -37,10 +37,11 @@ const ocgoApi = {
   refresh: (sessionId: string | undefined) => ocgoFetch<OcgoUsageView>(ocgoUrl(sessionId, '/api/ocgo-usage/refresh')),
 }
 
-/** Composed props of the dock entry (runtime + locale). */
+/** Composed props of the dock entry (runtime + locale + injected session). */
 export type OcgoDockEntryProps =
   PropsRuntime<'conversation.composer.dock'>
   & PropsLocale<typeof NS>
+  & { dockSessionId?: string | undefined }
 
 /** Short window label: 5h / wk / mo. */
 const WINDOW_LABELS: Record<UsageWindowKind, string> = {
@@ -110,7 +111,7 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
   const [view, setView] = useState<OcgoUsageView | null>(null)
   const [open, setOpen] = useState(false)
   const wrapRef = useRef<HTMLSpanElement>(null)
-  const sessionId = props.sessionId
+  const sessionId = props.dockSessionId
 
   // One periodic tick: fetch the host snapshot. The response carries `visible`
   // (resolved host-side from the session's current model provider) plus the
