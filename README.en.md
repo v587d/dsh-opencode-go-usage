@@ -23,9 +23,9 @@ OpenCode Go: 5h 0% (1h 23m) · wk 65% (2d 20h) · mo 83% (6d 21h) · upd 20:15
 - **Data freshness** — `upd HH:MM` shows the last successful fetch time
 - **Lightweight polling** — every 10 s (and on tab refocus); the host caches for 300 s (TTL configurable) with a 60 s failure cooldown, so opencode.ai is never hammered
 - **Provider-aware** — the chip shows only while the session's current model routes through the `opencode-go` provider. Visibility reads the live in-memory model selection (`session.models`, ~ms warm) on every poll, so switching to e.g. DeepSeek official via `/model` hides it within one 10 s cycle and switching back re-shows it (mirrors pi-ocgo-usage)
-- **Click to expand** — detail panel with per-window reset countdowns, a `set` credential editor, and `refresh upd HH:MM`
-- **Built-in credential editor** — no terminal needed: the `set` panel edits workspace id and cookie in place (fields show `••••` + last 4 chars; click outside / Esc / Save confirms the write)
-- **Graceful degradation** — missing config shows `<err:noconfig>`, HTTP failures `<err:httpXXX>`; on error, clicking the chip opens the set editor directly
+- **Click to expand** — detail panel with per-window reset countdowns, a `Set` credential editor, and `refresh upd HH:MM`
+- **Built-in credential editor** — no terminal needed: the `Set` panel edits workspace id and cookie in place (fields show `••••` + last 4 chars; click outside / Esc / Save confirms the write)
+- **Graceful degradation** — missing config shows `<err:noconfig>`, HTTP failures `<err:httpXXX>`; on error, clicking the chip opens the Set editor directly
 - **Cookie stays on the host** — the browser only ever talks to the same-origin `/api/ocgo-usage` JSON endpoint; the cookie never reaches the page
 
 > **⚠️ Requires an OpenCode Go session cookie.** The cookie is a full user session (not an API key) and grants access to your entire OpenCode account. Treat it like a password — see [Configuration](#configuration).
@@ -80,9 +80,9 @@ dsh --profile web --dump-config   # shows a "# == dsh-ocgo-usage" layer
 
 ## Configuration
 
-### Option 1: the in-UI set panel (easiest)
+### Option 1: the in-UI Set panel (easiest)
 
-Click the chip to expand → `set` (bottom-left) → type the workspace id and cookie (existing values show as `••••` + last 4 chars; focus a field to type a replacement) → click outside / press Esc / hit Save — it takes effect immediately.
+Click the chip to expand → `Set` (bottom-left) → type the workspace id and cookie (existing values show as `••••` + last 4 chars; focus a field to type a replacement) → click outside / press Esc / hit Save — it takes effect immediately.
 
 ![Set editor](assets/set-cookie-wid.png)
 
@@ -126,7 +126,7 @@ Composition-level config (via `~/.dsh/profiles/web/cordis.patch.yml`):
     enabled: false    # master switch, default true
 ```
 
-> **Cookie expiration:** the `auth` cookie is valid for 1 year from issue. When it expires (or is revoked), the page 302-redirects to the login page; the chip then shows `<err:http302>` instead of stale numbers. Re-login to opencode.ai and update the cookie via the set panel.
+> **Cookie expiration:** the `auth` cookie is valid for 1 year from issue. When it expires (or is revoked), the page 302-redirects to the login page; the chip then shows `<err:http302>` instead of stale numbers. Re-login to opencode.ai and update the cookie via the Set panel.
 
 ## Usage
 
