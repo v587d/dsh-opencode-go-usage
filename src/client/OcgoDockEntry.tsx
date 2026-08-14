@@ -104,35 +104,53 @@ function WindowSegment(props: { window: UsageWindow; sep: string }): React.React
 export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | null {
   const [view, setView] = useState<OcgoUsageView | null>(null)
   const [open, setOpen] = useState(false)
-  const [visible, setVisible] = useState(false)
+  const [visible, setVisible] = useState(true)
   const wrapRef = useRef<HTMLSpanElement>(null)
 
-  // Show only while the current session's model routes through opencode-go.
-  const checkProvider = useCallback(() => {
+  // One periodic tick. On every poll (and on refocus) we:
+  //   1. re-check the current session's model provider and toggle `visible`;
+  //   2. only when the chip is visible, also refresh the usage snapshot.
+  // This keeps the chip honest across in-place model switches (e.g. /model),
+  // which do NOT remount the dock component — so provider checking MUST ride
+  // the same period as the usage poll, not just mount/visibility.
+  const pollNow = useCallback(() => {
+    let live = true
     const provider = props.provider
-    if (provider === undefined) {
-      // No injected face (e.g. unit/fallback): hide to avoid misleading.
-      setVisible(false)
-      return
-    }
-    provider().then((p) => {
-      setVisible(p === 'opencode-go' || p?.startsWith('opencode-go/') === true)
+    const resolveProvider = provider !== undefined
+      ? Promise.resolve(provider()).then((p) => p ?? undefined, () => undefined)
+      : Promise.resolve(undefined)
+    resolveProvider.then((p) => {
+      if (!live) return
+      const shown = p === 'opencode-go' || p?.startsWith('opencode-go/') === true
+      setVisible(shown)
+      if (!shown) setOpen(false)
+      // Fetch usage only while the chip is shown.
+      if (shown) {
+        ocgoApi.view().then((snapshot) => {
+          if (live) setView(snapshot)
+        }, () => {
+          if (live) setView(null)
+        })
+      }
     }, () => {
-      setVisible(false)
+      if (live) setVisible(false)
     })
+    return () => { live = false }
   }, [props.provider])
 
-  // Keep the panel in sync with the current model; also re-check on refocus.
   useEffect(() => {
-    checkProvider()
+    const cleanup = pollNow()
+    const timer = window.setInterval(pollNow, POLL_MS)
     const onVisibility = (): void => {
-      if (document.visibilityState === 'visible') checkProvider()
+      if (document.visibilityState === 'visible') pollNow()
     }
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
+      cleanup()
+      window.clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [checkProvider])
+  }, [pollNow])
 
   // Close the detail panel when focus leaves the chip: any pointer press
   // outside the wrapper, or Escape.
@@ -154,30 +172,6 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
       document.removeEventListener('keydown', onKeyDown)
     }
   }, [open])
-
-  const pollNow = useCallback(() => {
-    let live = true
-    ocgoApi.view().then((snapshot) => {
-      if (live) setView(snapshot)
-    }, () => {
-      if (live) setView(null)
-    })
-    return () => { live = false }
-  }, [])
-
-  useEffect(() => {
-    const cleanup = pollNow()
-    const timer = window.setInterval(pollNow, POLL_MS)
-    const onVisibility = (): void => {
-      if (document.visibilityState === 'visible') pollNow()
-    }
-    document.addEventListener('visibilitychange', onVisibility)
-    return () => {
-      cleanup()
-      window.clearInterval(timer)
-      document.removeEventListener('visibilitychange', onVisibility)
-    }
-  }, [pollNow])
 
   const refresh = (): void => {
     ocgoApi.refresh().then((snapshot) => {

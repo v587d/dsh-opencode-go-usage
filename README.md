@@ -12,6 +12,7 @@ OpenCode Go: 5h 0% (1h 23m) · wk 65% (2d 20h) · mo 83% (6d 21h) · upd 20:15
 - **Color thresholds** — muted → warning (≥80%) → error (≥90% or rate-limited)
 - **Data freshness** — `upd HH:MM` shows the last successful fetch time
 - **Non-intrusive** — the chip polls the host every 30 s (and on tab refocus); the host caches for 300 s (TTL configurable) with a 60 s failure cooldown, so opencode.ai is never hammered
+- **Provider-aware** — the chip shows only while the session's current model routes through the `opencode-go` provider; each poll re-checks the provider, so switching to e.g. DeepSeek official via `/model` hides it within one poll cycle and switching back re-shows it (mirrors pi-ocgo-usage)
 - **Click to expand** — per-window detail panel with reset countdowns and a manual refresh
 - **Graceful degradation** — missing config shows `<err:noconfig>`, HTTP failures `<err:httpXXX>`
 - **Cookie stays on the host** — the browser only ever talks to the same-origin `/api/ocgo-usage` JSON endpoint; the cookie never reaches the page
