@@ -1,6 +1,6 @@
 /**
- * Shared types for dsh-ocgo-usage.
- * @module dsh-ocgo-usage/types
+ * Shared types for dsh-opencode-go-usage.
+ * @module dsh-opencode-go-usage/types
  */
 /** One of the three OpenCode Go usage windows. */
 export type UsageWindowKind = 'rolling' | 'weekly' | 'monthly';

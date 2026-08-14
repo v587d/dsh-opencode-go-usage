@@ -1,6 +1,6 @@
 /**
  * Unit tests for the SSR usage page parser.
- * @module dsh-ocgo-usage/api.test
+ * @module dsh-opencode-go-usage/api.test
  */
 
 import { describe, expect, it } from 'vitest'

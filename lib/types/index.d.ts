@@ -1,11 +1,11 @@
 /**
- * dsh-ocgo-usage host half — mounts the usage service and its HTTP routes.
+ * dsh-opencode-go-usage host half — mounts the usage service and its HTTP routes.
  * The browser half (the `./client` entry) reads the three OpenCode Go usage
  * windows (rolling 5h / weekly / monthly) through the same-origin
  * `/api/ocgo-usage` JSON endpoints. Install via
  * `dsh plugin --profile web add <path-or-git-url>`; the cordis.patch.yml
  * inserts this plugin row.
- * @module dsh-ocgo-usage
+ * @module dsh-opencode-go-usage
  */
 import { Context } from '@deepseek-ai/cordis';
 import { type OcgoUsageConfig } from './service.ts';

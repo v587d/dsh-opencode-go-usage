@@ -1,5 +1,5 @@
 /**
- * HTTP fetch + response adapters for dsh-ocgo-usage
+ * HTTP fetch + response adapters for dsh-opencode-go-usage
  *
  * Cookie path (current): GET /workspace/<wrk>/go HTML SSR scrape.
  * The opencode.ai dashboard renders usage values inline in
@@ -9,7 +9,7 @@
  * path can be added behind the same `NormalizedUsage` shape.)
  *
  * Adapted from pi-ocgo-usage/src/api.ts.
- * @module dsh-ocgo-usage/api
+ * @module dsh-opencode-go-usage/api
  */
 import type { NormalizedUsage, OcgoConfig } from './types.ts';
 /** Error thrown by the HTTP / parsing layer; carries a short code for the UI. */

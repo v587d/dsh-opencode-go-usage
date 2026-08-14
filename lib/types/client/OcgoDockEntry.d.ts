@@ -6,7 +6,7 @@
  * per-window reset countdowns, a Set editor (masked workspace/cookie) and a
  * manual refresh. In the error state, clicking the chip opens the Set editor
  * directly so a stale credential can be replaced in place.
- * @module dsh-ocgo-usage/client/OcgoDockEntry
+ * @module dsh-opencode-go-usage/client/OcgoDockEntry
  */
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import { NS } from './locales.ts';

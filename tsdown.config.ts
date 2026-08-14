@@ -1,6 +1,6 @@
 import { clientBundle } from './shared/tsdown.client.ts'
 
-export default clientBundle('dsh-ocgo-usage', [
+export default clientBundle('dsh-opencode-go-usage', [
   'src/index.ts',
   'src/invariant.ts',
 ], {
