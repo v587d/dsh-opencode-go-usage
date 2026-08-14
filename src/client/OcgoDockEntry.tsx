@@ -31,10 +31,11 @@ const ocgoApi = {
   refresh: () => ocgoFetch<OcgoUsageView>('/api/ocgo-usage/refresh'),
 }
 
-/** Composed props of the dock entry (runtime + locale). */
+/** Composed props of the dock entry (runtime + locale + injected provider face). */
 export type OcgoDockEntryProps =
   PropsRuntime<'conversation.composer.dock'>
   & PropsLocale<typeof NS>
+  & { provider?: () => Promise<string | undefined> }
 
 /** Short window label: 5h / wk / mo. */
 const WINDOW_LABELS: Record<UsageWindowKind, string> = {
@@ -100,10 +101,38 @@ function WindowSegment(props: { window: UsageWindow; sep: string }): React.React
  * windows inline, and expands into a detail panel on click.
  * @param props - the composed dock entry props.
  */
-export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement {
+export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | null {
   const [view, setView] = useState<OcgoUsageView | null>(null)
   const [open, setOpen] = useState(false)
+  const [visible, setVisible] = useState(false)
   const wrapRef = useRef<HTMLSpanElement>(null)
+
+  // Show only while the current session's model routes through opencode-go.
+  const checkProvider = useCallback(() => {
+    const provider = props.provider
+    if (provider === undefined) {
+      // No injected face (e.g. unit/fallback): hide to avoid misleading.
+      setVisible(false)
+      return
+    }
+    provider().then((p) => {
+      setVisible(p === 'opencode-go' || p?.startsWith('opencode-go/') === true)
+    }, () => {
+      setVisible(false)
+    })
+  }, [props.provider])
+
+  // Keep the panel in sync with the current model; also re-check on refocus.
+  useEffect(() => {
+    checkProvider()
+    const onVisibility = (): void => {
+      if (document.visibilityState === 'visible') checkProvider()
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
+  }, [checkProvider])
 
   // Close the detail panel when focus leaves the chip: any pointer press
   // outside the wrapper, or Escape.
@@ -160,6 +189,11 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement {
 
   const t = props.t
   const sep = ` ${t('ocgo.sep')} `
+
+  // Hidden until the current model's provider is confirmed as opencode-go.
+  // This is the pi-ocgo-usage behaviour: switching away hides the chip so a
+  // DeepSeek-official (or any other) user never sees OpenCode Go numbers.
+  if (!visible) return null
 
   // Error state: compact `<err:code>` chip; click to force a refresh.
   if (view === null || view.error !== undefined) {
