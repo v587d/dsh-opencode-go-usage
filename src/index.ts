@@ -24,7 +24,7 @@ export { fetchUsage, fromSSRHTML, parseDurationToSec, UsageError } from './api.t
 export const name = 'ocgo-usage'
 
 /** Services required before the usage service can answer. */
-export const inject = ['webServer', 'sessions']
+export const inject = ['webServer']
 
 /** Register the usage service and its API routes on the context. */
 export function apply(ctx: Context, config: OcgoUsageConfig = {}): void {

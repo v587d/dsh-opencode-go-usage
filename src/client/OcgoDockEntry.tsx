@@ -9,12 +9,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
+import { isOpenCodeGo } from '../provider.ts'
 import type { OcgoUsageView, UsageWindow, UsageWindowKind } from '../types.ts'
 import { NS, type OcgoKey } from './locales.ts'
 import css from './ocgo.module.css'
 
-/** Poll interval for the host snapshot. */
-const POLL_MS = 30_000
+/** Poll interval for the host snapshot and the live model provider. */
+const POLL_MS = 10_000
 
 /** Same-origin JSON fetch helper. */
 async function ocgoFetch<T>(path: string): Promise<T> {
@@ -25,23 +26,17 @@ async function ocgoFetch<T>(path: string): Promise<T> {
   return (await response.json()) as T
 }
 
-/** Build the request URL, carrying the session so the host can resolve visibility. */
-function ocgoUrl(sessionId: string | undefined, path: string): string {
-  if (sessionId === undefined || sessionId.length === 0) return path
-  return `${path}?session=${encodeURIComponent(sessionId)}`
-}
-
 /** The host usage API as the browser sees it (same-origin JSON endpoints). */
 const ocgoApi = {
-  view: (sessionId: string | undefined) => ocgoFetch<OcgoUsageView>(ocgoUrl(sessionId, '/api/ocgo-usage')),
-  refresh: (sessionId: string | undefined) => ocgoFetch<OcgoUsageView>(ocgoUrl(sessionId, '/api/ocgo-usage/refresh')),
+  view: () => ocgoFetch<OcgoUsageView>('/api/ocgo-usage'),
+  refresh: () => ocgoFetch<OcgoUsageView>('/api/ocgo-usage/refresh'),
 }
 
-/** Composed props of the dock entry (runtime + locale + injected session). */
+/** Composed props of the dock entry (runtime + locale + injected session/provider face). */
 export type OcgoDockEntryProps =
   PropsRuntime<'conversation.composer.dock'>
   & PropsLocale<typeof NS>
-  & { dockSessionId?: string | undefined }
+  & { dockSessionId?: string | undefined; provider?: () => Promise<string | undefined> }
 
 /** Short window label: 5h / wk / mo. */
 const WINDOW_LABELS: Record<UsageWindowKind, string> = {
@@ -110,28 +105,39 @@ function WindowSegment(props: { window: UsageWindow; sep: string }): React.React
 export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | null {
   const [view, setView] = useState<OcgoUsageView | null>(null)
   const [open, setOpen] = useState(false)
+  const [visible, setVisible] = useState(true)
   const wrapRef = useRef<HTMLSpanElement>(null)
-  const sessionId = props.dockSessionId
 
-  // One periodic tick: fetch the host snapshot. The response carries `visible`
-  // (resolved host-side from the session's current model provider) plus the
-  // usage windows. Switching models mid-session does NOT remount this dock
-  // entry, so visibility is re-derived on every poll, keeping the chip honest.
+  // One periodic tick:
+  //   1. resolve the session's CURRENT provider from the live in-memory
+  //      selection (session.models, warm ~ms) and toggle `visible`;
+  //   2. only while visible, fetch the usage snapshot.
+  // Switching models mid-session does NOT remount this dock entry, so the
+  // provider is re-derived every poll — /model switches reflect within one
+  // interval (10 s), not just on remount.
   const pollNow = useCallback(() => {
     let live = true
-    ocgoApi.view(sessionId).then((snapshot) => {
+    const provider = props.provider
+    const resolveProvider = provider !== undefined
+      ? Promise.resolve(provider()).then((p) => p ?? undefined, () => undefined)
+      : Promise.resolve(undefined)
+    resolveProvider.then((p) => {
       if (!live) return
-      setView(snapshot)
-      if (!snapshot.visible) {
-        // Provider is not opencode-go: hide the chip (and any open panel).
-        setOpen(false)
+      const shown = isOpenCodeGo(p)
+      setVisible(shown)
+      if (!shown) setOpen(false)
+      if (shown) {
+        ocgoApi.view().then((snapshot) => {
+          if (live) setView(snapshot)
+        }, () => {
+          if (live) setView(null)
+        })
       }
     }, () => {
-      if (!live) return
-      setView(null)
+      if (live) setVisible(false)
     })
     return () => { live = false }
-  }, [sessionId])
+  }, [props.provider])
 
   useEffect(() => {
     const cleanup = pollNow()
@@ -169,9 +175,8 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
   }, [open])
 
   const refresh = (): void => {
-    ocgoApi.refresh(sessionId).then((snapshot) => {
+    ocgoApi.refresh().then((snapshot) => {
       setView(snapshot)
-      if (!snapshot.visible) setOpen(false)
     }, () => {
       // Ignore transport errors on manual refresh; the next poll resyncs.
     })
@@ -180,11 +185,10 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
   const t = props.t
   const sep = ` ${t('ocgo.sep')} `
 
-  // Hidden only when the host explicitly reports `visible: false` — i.e. the
-  // session's current model provider is not opencode-go. A host that has not
-  // been restarted to the visibility-aware build omits the field; treat that
-  // as "shown" (backward compatible) rather than dropping the chip entirely.
-  if (view !== null && view.visible === false) return null
+  // Hidden whenever the live provider is not opencode-go — the pi-ocgo-usage
+  // behaviour: switching to e.g. DeepSeek official hides the chip within one
+  // poll interval, so no other provider's user sees OpenCode Go numbers.
+  if (!visible) return null
 
   // Error state: compact `<err:code>` chip; click to force a refresh.
   if (view === null || view.error !== undefined) {

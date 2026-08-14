@@ -50,12 +50,6 @@ export type UsageWindowView = UsageWindow
 
 /** The browser-facing snapshot served by the host JSON endpoint. */
 export interface OcgoUsageView {
-  /**
-   * Whether the referenced session's current model routes through the
-   * `opencode-go` provider (resolved by the host, in-process). The browser
-   * renders nothing while `visible` is false, mirroring pi-ocgo-usage.
-   */
-  readonly visible: boolean
   /** Epoch ms of the last successful fetch (absent before any success). */
   readonly updatedAt?: number
   readonly rolling?: UsageWindowView
