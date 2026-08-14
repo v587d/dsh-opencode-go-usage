@@ -11,3 +11,6 @@ node_modules/
 
 # OS noise
 .DS_Store
+
+# 本地内部文档（不公开，避免泄露内部信息与凭据线索）
+AGENTS.md
