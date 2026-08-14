@@ -2,7 +2,8 @@
  * dsh-ocgo-usage HTTP routes — the browser half talks to the host through
  * plain same-origin JSON endpoints (`/api/ocgo-usage` and
  * `/api/ocgo-usage/refresh`), which the host answers from the cached
- * OpenCode Go usage read. The client never sees the cookie.
+ * OpenCode Go usage read plus the session's provider visibility. The client
+ * never sees the cookie.
  * @module dsh-ocgo-usage/routes
  */
 
@@ -26,14 +27,25 @@ function requireMethod(req: IncomingMessage, res: ServerResponse, method: string
   return false
 }
 
+/** Read the `session` query parameter from the request URL. */
+function sessionParam(req: IncomingMessage): string | undefined {
+  const raw = req.url ?? ''
+  const q = raw.indexOf('?')
+  if (q < 0) return undefined
+  const params = new URLSearchParams(raw.slice(q + 1))
+  const value = params.get('session')
+  return value === null || value === '' ? undefined : value
+}
+
 /** Wrap one async usage read as a GET JSON route. */
-function getRoute(path: string, run: () => Promise<OcgoUsageView>): WebRoute {
+function getRoute(path: string, run: (sessionId: string | undefined) => Promise<OcgoUsageView>): WebRoute {
   return {
     kind: 'exact',
     path,
     handler: (req: IncomingMessage, res: ServerResponse): void => {
       if (!requireMethod(req, res, 'GET')) return
-      Promise.resolve(run()).then((value) => json(res, 200, value), (error) => {
+      const sessionId = sessionParam(req)
+      Promise.resolve(run(sessionId)).then((value) => json(res, 200, value), (error) => {
         json(res, 500, { ok: false, error: error instanceof Error ? error.message : String(error) })
       })
     },
@@ -43,7 +55,7 @@ function getRoute(path: string, run: () => Promise<OcgoUsageView>): WebRoute {
 /** Build the full usage API route family for one service. */
 export function makeOcgoRoutes(service: OcgoUsageService): WebRoute[] {
   return [
-    getRoute(OCGO_API_PREFIX, () => service.view()),
-    getRoute(`${OCGO_API_PREFIX}/refresh`, () => service.refresh()),
+    getRoute(OCGO_API_PREFIX, (sessionId) => service.view(sessionId)),
+    getRoute(`${OCGO_API_PREFIX}/refresh`, (sessionId) => service.refresh(sessionId)),
   ]
 }

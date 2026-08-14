@@ -25,17 +25,22 @@ async function ocgoFetch<T>(path: string): Promise<T> {
   return (await response.json()) as T
 }
 
-/** The host usage API as the browser sees it (same-origin JSON endpoints). */
-const ocgoApi = {
-  view: () => ocgoFetch<OcgoUsageView>('/api/ocgo-usage'),
-  refresh: () => ocgoFetch<OcgoUsageView>('/api/ocgo-usage/refresh'),
+/** Build the request URL, carrying the session so the host can resolve visibility. */
+function ocgoUrl(sessionId: string | undefined, path: string): string {
+  if (sessionId === undefined || sessionId.length === 0) return path
+  return `${path}?session=${encodeURIComponent(sessionId)}`
 }
 
-/** Composed props of the dock entry (runtime + locale + injected provider face). */
+/** The host usage API as the browser sees it (same-origin JSON endpoints). */
+const ocgoApi = {
+  view: (sessionId: string | undefined) => ocgoFetch<OcgoUsageView>(ocgoUrl(sessionId, '/api/ocgo-usage')),
+  refresh: (sessionId: string | undefined) => ocgoFetch<OcgoUsageView>(ocgoUrl(sessionId, '/api/ocgo-usage/refresh')),
+}
+
+/** Composed props of the dock entry (runtime + locale). */
 export type OcgoDockEntryProps =
   PropsRuntime<'conversation.composer.dock'>
   & PropsLocale<typeof NS>
-  & { provider?: () => Promise<string | undefined> }
 
 /** Short window label: 5h / wk / mo. */
 const WINDOW_LABELS: Record<UsageWindowKind, string> = {
@@ -104,39 +109,28 @@ function WindowSegment(props: { window: UsageWindow; sep: string }): React.React
 export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | null {
   const [view, setView] = useState<OcgoUsageView | null>(null)
   const [open, setOpen] = useState(false)
-  const [visible, setVisible] = useState(true)
   const wrapRef = useRef<HTMLSpanElement>(null)
+  const sessionId = props.sessionId
 
-  // One periodic tick. On every poll (and on refocus) we:
-  //   1. re-check the current session's model provider and toggle `visible`;
-  //   2. only when the chip is visible, also refresh the usage snapshot.
-  // This keeps the chip honest across in-place model switches (e.g. /model),
-  // which do NOT remount the dock component — so provider checking MUST ride
-  // the same period as the usage poll, not just mount/visibility.
+  // One periodic tick: fetch the host snapshot. The response carries `visible`
+  // (resolved host-side from the session's current model provider) plus the
+  // usage windows. Switching models mid-session does NOT remount this dock
+  // entry, so visibility is re-derived on every poll, keeping the chip honest.
   const pollNow = useCallback(() => {
     let live = true
-    const provider = props.provider
-    const resolveProvider = provider !== undefined
-      ? Promise.resolve(provider()).then((p) => p ?? undefined, () => undefined)
-      : Promise.resolve(undefined)
-    resolveProvider.then((p) => {
+    ocgoApi.view(sessionId).then((snapshot) => {
       if (!live) return
-      const shown = p === 'opencode-go' || p?.startsWith('opencode-go/') === true
-      setVisible(shown)
-      if (!shown) setOpen(false)
-      // Fetch usage only while the chip is shown.
-      if (shown) {
-        ocgoApi.view().then((snapshot) => {
-          if (live) setView(snapshot)
-        }, () => {
-          if (live) setView(null)
-        })
+      setView(snapshot)
+      if (!snapshot.visible) {
+        // Provider is not opencode-go: hide the chip (and any open panel).
+        setOpen(false)
       }
     }, () => {
-      if (live) setVisible(false)
+      if (!live) return
+      setView(null)
     })
     return () => { live = false }
-  }, [props.provider])
+  }, [sessionId])
 
   useEffect(() => {
     const cleanup = pollNow()
@@ -174,8 +168,9 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
   }, [open])
 
   const refresh = (): void => {
-    ocgoApi.refresh().then((snapshot) => {
+    ocgoApi.refresh(sessionId).then((snapshot) => {
       setView(snapshot)
+      if (!snapshot.visible) setOpen(false)
     }, () => {
       // Ignore transport errors on manual refresh; the next poll resyncs.
     })
@@ -184,10 +179,11 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
   const t = props.t
   const sep = ` ${t('ocgo.sep')} `
 
-  // Hidden until the current model's provider is confirmed as opencode-go.
-  // This is the pi-ocgo-usage behaviour: switching away hides the chip so a
-  // DeepSeek-official (or any other) user never sees OpenCode Go numbers.
-  if (!visible) return null
+  // Hidden only when the host explicitly reports `visible: false` — i.e. the
+  // session's current model provider is not opencode-go. A host that has not
+  // been restarted to the visibility-aware build omits the field; treat that
+  // as "shown" (backward compatible) rather than dropping the chip entirely.
+  if (view !== null && view.visible === false) return null
 
   // Error state: compact `<err:code>` chip; click to force a refresh.
   if (view === null || view.error !== undefined) {

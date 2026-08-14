@@ -4,6 +4,11 @@
  * a changed cookie reaches the next query without a plugin restart, fetches
  * the SSR usage page, and caches the result so the browser readout can poll
  * without spamming opencode.ai.
+ *
+ * Provider visibility is resolved here on the host, in-process (reading the
+ * session's request header or the default model selection) and returned with
+ * every view — so a poll costs one lightweight JSON round trip and never a
+ * model-catalog build.
  * @module dsh-ocgo-usage/service
  */
 
@@ -29,13 +34,12 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-/** Map a UsageError (or any error) to a browser-safe view. */
-function errorView(error: unknown): OcgoUsageView {
-  if (error instanceof UsageError) {
-    return { error: error.code, message: error.message }
-  }
-  const message = error instanceof Error ? error.message : String(error)
-  return { error: 'fetch', message }
+/** The provider whose model selection shows the chip. */
+export const OCGO_PROVIDER = 'opencode-go'
+
+/** True when a provider/model means "show OpenCode Go usage". */
+export function isOpenCodeGo(provider: string | undefined): boolean {
+  return provider === OCGO_PROVIDER || provider?.startsWith(`${OCGO_PROVIDER}/`) === true
 }
 
 /**
@@ -48,7 +52,8 @@ export class OcgoUsageService extends Service {
   private cached: NormalizedUsage | undefined
   private cachedAt = 0
   private failureUntilMs = 0
-  private inflight: Promise<OcgoUsageView> | undefined
+  private lastError: Omit<OcgoUsageView, 'visible'> | undefined
+  private inflight: Promise<Omit<OcgoUsageView, 'visible'>> | undefined
 
   constructor(ctx: Context, config: OcgoUsageConfig = {}) {
     super(ctx, 'ocgoUsage')
@@ -65,12 +70,40 @@ export class OcgoUsageService extends Service {
     return loadConfig().cacheTTL * 1000
   }
 
-  /**
-   * RPC: most recent usage view. Returns the cached view when it is still
-   * fresh, otherwise re-queries the provider (deduped when concurrent).
-   */
-  async view(): Promise<OcgoUsageView> {
-    if (!this.enabled) return { error: 'disabled', message: 'The ocgo-usage plugin is disabled.' }
+  /** The current session's model provider, or the deployment default. Never builds the model catalog. */
+  private providerFor(sessionId: string | undefined): string | undefined {
+    if (sessionId === undefined) return undefined
+    const sessions = this.ctx.get('sessions') as
+      | { get(id: string): { requestHeader(): { config?: { provider?: string } } | undefined } | undefined }
+      | undefined
+    const logged = sessions?.get(sessionId)?.requestHeader()?.config?.provider
+    if (logged !== undefined && logged.length > 0) return logged
+    const defaults = this.ctx.get('agentDefaultModel') as
+      | { currentSelection(): { provider: string } }
+      | undefined
+    return defaults?.currentSelection()?.provider
+  }
+
+  /** Resolve the browser-facing view for a session (visible + cached/refreshed usage). */
+  async view(sessionId: string | undefined): Promise<OcgoUsageView> {
+    if (!this.enabled) {
+      return { visible: false, error: 'disabled', message: 'The ocgo-usage plugin is disabled.' }
+    }
+    const base = await this.readBase()
+    return { ...base, visible: isOpenCodeGo(this.providerFor(sessionId)) }
+  }
+
+  /** RPC: force a fresh provider query (bypasses the cache window). */
+  async refresh(sessionId: string | undefined): Promise<OcgoUsageView> {
+    if (!this.enabled) {
+      return { visible: false, error: 'disabled', message: 'The ocgo-usage plugin is disabled.' }
+    }
+    const base = await this.query()
+    return { ...base, visible: isOpenCodeGo(this.providerFor(sessionId)) }
+  }
+
+  /** The usage read: fresh cache when available, else a provider query. */
+  private async readBase(): Promise<Omit<OcgoUsageView, 'visible'>> {
     const now = Date.now()
     if (this.cached !== undefined && now - this.cachedAt < this.ttlMs()) {
       return toView(this.cached)
@@ -95,24 +128,7 @@ export class OcgoUsageService extends Service {
     return this.inflight
   }
 
-  /** RPC: force a fresh provider query (bypasses the cache window). */
-  async refresh(): Promise<OcgoUsageView> {
-    if (!this.enabled) return { error: 'disabled', message: 'The ocgo-usage plugin is disabled.' }
-    const view = await this.query()
-    if (view.error === undefined) {
-      this.lastError = undefined
-      this.failureUntilMs = 0
-    } else {
-      this.lastError = view
-      this.failureUntilMs = Date.now() + FAILURE_COOLDOWN_MS
-    }
-    return view
-  }
-
-  /** The last failure view, kept for the cooldown window. */
-  private lastError: OcgoUsageView | undefined
-
-  private async query(): Promise<OcgoUsageView> {
+  private async query(): Promise<Omit<OcgoUsageView, 'visible'>> {
     try {
       const data = await fetchUsage(loadConfig())
       this.cached = data
@@ -124,8 +140,17 @@ export class OcgoUsageService extends Service {
   }
 }
 
+/** Map a UsageError (or any error) to a browser-safe view. */
+function errorView(error: unknown): Omit<OcgoUsageView, 'visible'> {
+  if (error instanceof UsageError) {
+    return { error: error.code, message: error.message }
+  }
+  const message = error instanceof Error ? error.message : String(error)
+  return { error: 'fetch', message }
+}
+
 /** Convert the internal normalized shape into the browser view. */
-function toView(data: NormalizedUsage): OcgoUsageView {
+function toView(data: NormalizedUsage): Omit<OcgoUsageView, 'visible'> {
   return {
     updatedAt: data.updatedAt,
     ...(data.rolling === undefined ? {} : { rolling: data.rolling }),

@@ -129,3 +129,65 @@ describe('OcgoUsageService', () => {
     expect(fetchSpy).not.toHaveBeenCalled()
   })
 })
+
+describe('OcgoUsageService visibility', () => {
+  let ctx: Context
+  let tmp: string
+  let currentProvider: string | null
+  let currentDefault: string
+
+  beforeEach(() => {
+    process.env[ENV_COOKIE] = 'auth=Fe26.2*test; oc_locale=zh'
+    process.env[ENV_WORKSPACE_ID] = 'wrk_test'
+    tmp = mkdtempSync(join(tmpdir(), 'dsh-ocgo-usage-vis-'))
+    process.env.DSH_HOME = tmp
+    ctx = new Context()
+    currentProvider = null
+    currentDefault = 'deepseek'
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(OK_PAGE, { status: 200, headers: { 'content-type': 'text/html' } }),
+    )
+    // Stub the two host services the service reads; they share captured state
+    // so each test can flip the provider without re-providing a name.
+    ctx.provide('sessions', {
+      get: (id: string) => id === 'session-test'
+        ? { requestHeader: () => (currentProvider === null ? undefined : { config: { provider: currentProvider } }) }
+        : undefined,
+    } as never)
+    ctx.provide('agentDefaultModel', {
+      currentSelection: () => ({ provider: currentDefault }),
+    } as never)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    if (SAVED_COOKIE === undefined) delete process.env[ENV_COOKIE]
+    else process.env[ENV_COOKIE] = SAVED_COOKIE
+    if (SAVED_WORKSPACE === undefined) delete process.env[ENV_WORKSPACE_ID]
+    else process.env[ENV_WORKSPACE_ID] = SAVED_WORKSPACE
+    delete process.env.DSH_HOME
+    rmSync(tmp, { recursive: true, force: true })
+  })
+
+  it('reports visible:true only for the opencode-go provider', async () => {
+    const service = new OcgoUsageService(ctx)
+    currentProvider = 'opencode-go'
+    expect((await service.view('session-test')).visible).toBe(true)
+    currentProvider = 'deepseek'
+    expect((await service.view('session-test')).visible).toBe(false)
+  })
+
+  it('matches the opencode-go/ model prefix via provider', async () => {
+    const service = new OcgoUsageService(ctx)
+    currentProvider = 'opencode-go/deepseek-v4-flash'
+    expect((await service.refresh('session-test')).visible).toBe(true)
+  })
+
+  it('falls back to the deployment default provider for a blank session', async () => {
+    const service = new OcgoUsageService(ctx)
+    // requestHeader() returns undefined (no header) → uses agentDefaultModel.
+    currentProvider = null
+    currentDefault = 'opencode-go'
+    expect((await service.view('session-test')).visible).toBe(true)
+  })
+})
