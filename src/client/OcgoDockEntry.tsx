@@ -7,7 +7,7 @@
  * @module dsh-ocgo-usage/client/OcgoDockEntry
  */
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { OcgoUsageView, UsageWindow, UsageWindowKind } from '../types.ts'
 import { NS, type OcgoKey } from './locales.ts'
@@ -103,6 +103,28 @@ function WindowSegment(props: { window: UsageWindow; sep: string }): React.React
 export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement {
   const [view, setView] = useState<OcgoUsageView | null>(null)
   const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLSpanElement>(null)
+
+  // Close the detail panel when focus leaves the chip: any pointer press
+  // outside the wrapper, or Escape.
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent): void => {
+      const target = event.target as Node | null
+      if (target !== null && wrapRef.current !== null && !wrapRef.current.contains(target)) {
+        setOpen(false)
+      }
+    }
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
 
   const pollNow = useCallback(() => {
     let live = true
@@ -178,7 +200,7 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement {
   }
 
   return (
-    <span className={css.wrap} data-testid="ocgo-chip">
+    <span className={css.wrap} ref={wrapRef} data-testid="ocgo-chip">
       <button
         type="button"
         className={open ? `${css.chip} ${css.chipOpen}` : css.chip}

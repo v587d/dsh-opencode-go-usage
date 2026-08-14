@@ -8,7 +8,7 @@ export const NS = 'ocgo'
 
 /** Chinese copy. */
 export const zh = {
-  'ocgo.label': 'OC.go',
+  'ocgo.label': 'OpenCode Go',
   'ocgo.unavailable': '用量不可用',
   'ocgo.error': '查询失败：{code}',
   'ocgo.noconfig': '未配置：请设置 OPENCODE_GO_COOKIE 与 OPENCODE_GO_WORKSPACE_ID（或 $DSH_HOME/ocgo-usage.json）',
@@ -26,7 +26,7 @@ export const zh = {
 
 /** English copy. */
 export const en = {
-  'ocgo.label': 'OC.go',
+  'ocgo.label': 'OpenCode Go',
   'ocgo.unavailable': 'usage unavailable',
   'ocgo.error': 'Query failed: {code}',
   'ocgo.noconfig': 'Not configured: set OPENCODE_GO_COOKIE and OPENCODE_GO_WORKSPACE_ID (or $DSH_HOME/ocgo-usage.json)',
