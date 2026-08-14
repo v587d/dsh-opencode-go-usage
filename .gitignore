@@ -1,0 +1,14 @@
+# Dependencies and build cache
+node_modules/
+*.tsbuildinfo
+lib/
+
+# Local session/journal files
+*.jsonl
+*.log
+
+# npm auth config (contains token references; never commit)
+.npmrc
+
+# OS noise
+.DS_Store

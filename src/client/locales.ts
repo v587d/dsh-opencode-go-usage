@@ -1,0 +1,46 @@
+/**
+ * dsh-ocgo-usage locale dictionaries (zh/en).
+ * @module dsh-ocgo-usage/client/locales
+ */
+
+/** Dictionary namespace this package registers. */
+export const NS = 'ocgo'
+
+/** Chinese copy. */
+export const zh = {
+  'ocgo.label': 'OC.go',
+  'ocgo.unavailable': '用量不可用',
+  'ocgo.error': '查询失败：{code}',
+  'ocgo.noconfig': '未配置：请设置 OPENCODE_GO_COOKIE 与 OPENCODE_GO_WORKSPACE_ID（或 $DSH_HOME/ocgo-usage.json）',
+  'ocgo.refresh': '刷新',
+  'ocgo.fetchedAt': '更新于 {time}',
+  'ocgo.rolling': '5h 滚动',
+  'ocgo.weekly': '每周',
+  'ocgo.monthly': '每月',
+  'ocgo.rateLimited': '已限流',
+  'ocgo.resetsIn': '剩余 {duration}',
+  'ocgo.expand': '展开用量详情',
+  'ocgo.collapse': '收起',
+  'ocgo.sep': '·',
+} as const
+
+/** English copy. */
+export const en = {
+  'ocgo.label': 'OC.go',
+  'ocgo.unavailable': 'usage unavailable',
+  'ocgo.error': 'Query failed: {code}',
+  'ocgo.noconfig': 'Not configured: set OPENCODE_GO_COOKIE and OPENCODE_GO_WORKSPACE_ID (or $DSH_HOME/ocgo-usage.json)',
+  'ocgo.refresh': 'Refresh',
+  'ocgo.fetchedAt': 'Updated {time}',
+  'ocgo.rolling': '5h rolling',
+  'ocgo.weekly': 'Weekly',
+  'ocgo.monthly': 'Monthly',
+  'ocgo.rateLimited': 'rate-limited',
+  'ocgo.resetsIn': 'resets in {duration}',
+  'ocgo.expand': 'Show usage details',
+  'ocgo.collapse': 'Collapse',
+  'ocgo.sep': '·',
+} as const
+
+/** Key type of the dictionary (for the LocaleNamespaceMap merge). */
+export type OcgoKey = keyof typeof zh
