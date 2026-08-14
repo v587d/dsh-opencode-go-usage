@@ -1,7 +1,6 @@
 # Dependencies and build cache
 node_modules/
 *.tsbuildinfo
-lib/
 
 # Local session/journal files
 *.jsonl

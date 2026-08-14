@@ -26,7 +26,36 @@ OpenCode Go: 5h 0% (1h 23m) · wk 65% (2d 20h) · mo 83% (6d 21h) · upd 20:15
 
 ## Installation
 
-From a local checkout (development):
+This package is a standard dsh **bundle**: it declares `dsh.bundle` in its
+manifest and installs through `dsh plugin --profile web add <spec>` (a pnpm
+forwarder), which links the package and appends it to the profile's
+`dsh.profile.bundles`. The repo ships pre-built `lib/` artifacts, so **no
+build step or install-time build permission is needed** — this follows the
+official [publish guide](https://github.com/deepseek-ai/deepseek-harness/blob/master/docs/user/develop/basic/publish.md).
+
+### From GitHub (recommended for users)
+
+```sh
+dsh plugin --profile web add github:<you>/dsh-ocgo-usage
+```
+
+Because `lib/` is committed, pnpm installs the built package directly and
+never asks for a build-script allowance.
+
+### From npm (after a release)
+
+```sh
+dsh plugin --profile web add dsh-ocgo-usage
+```
+
+### From a tarball
+
+```sh
+pnpm pack            # in this repo → dsh-ocgo-usage-0.1.0.tgz
+dsh plugin --profile web add ./dsh-ocgo-usage-0.1.0.tgz
+```
+
+### From a local checkout (development)
 
 ```sh
 git clone <your-fork>/dsh-ocgo-usage.git   # or just cd into this directory
@@ -34,12 +63,6 @@ cd dsh-ocgo-usage
 pnpm install
 pnpm run build
 dsh plugin --profile web add link:$(pwd)
-```
-
-Or from a git URL / npm once published:
-
-```sh
-dsh plugin --profile web add <git-or-npm-spec>
 ```
 
 **Restart `dsh web`, then refresh the page.** The usage chip appears in the composer dock next to the conversation stats line. Verify the plugin layer is composed without booting:
