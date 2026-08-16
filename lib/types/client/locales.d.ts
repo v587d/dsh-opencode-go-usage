@@ -6,7 +6,6 @@
 export declare const NS = "ocgo";
 /** Chinese copy. */
 export declare const zh: {
-    readonly 'ocgo.label': "OpenCode Go";
     readonly 'ocgo.unavailable': "用量不可用";
     readonly 'ocgo.error': "查询失败：{code}";
     readonly 'ocgo.noconfig': "未配置：请设置 OPENCODE_GO_COOKIE 与 OPENCODE_GO_WORKSPACE_ID（或 $DSH_HOME/ocgo-usage.json）";
@@ -28,7 +27,6 @@ export declare const zh: {
 };
 /** English copy. */
 export declare const en: {
-    readonly 'ocgo.label': "OpenCode Go";
     readonly 'ocgo.unavailable': "usage unavailable";
     readonly 'ocgo.error': "Query failed: {code}";
     readonly 'ocgo.noconfig': "Not configured: set OPENCODE_GO_COOKIE and OPENCODE_GO_WORKSPACE_ID (or $DSH_HOME/ocgo-usage.json)";

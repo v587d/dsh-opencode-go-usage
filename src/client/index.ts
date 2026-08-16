@@ -1,12 +1,12 @@
 /**
  * dsh-ocgo-usage browser half — registers the OpenCode Go usage chip into
- * the composer dock band (`conversation.composer.dock`, the same seat the
- * official conversation stats line uses) and reads the host's same-origin
- * `/api/ocgo-usage` JSON endpoints: poll the host snapshot (every 10 s),
+ * the composer tool row (`conversation.input.right`, next to the model
+ * selector) and reads the host's same-origin `/api/ocgo-usage` JSON endpoints:
+ * poll the host snapshot (every 10 s),
  * refresh on demand. The chip shows the three usage windows (rolling 5h /
- * weekly / monthly) with reset countdowns; while the host reports no usable
- * data (missing config, cookie error, or provider failure) it renders a
- * compact `<err:code>` state with a manual refresh action.
+ * weekly / monthly) in a compact form; while the host reports no usable data
+ * (missing config, cookie error, or provider failure) it renders a compact
+ * `<err:code>` state with a manual refresh action.
  *
  * Provider visibility is decided CLIENT-side from the live model selection:
  * `session.models` reads the in-memory current selection (2-3 ms warm, no
@@ -21,7 +21,7 @@
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
 // Type-only: pulls the locale plugin's Context merge (ctx.locale).
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-// Type-only: pulls the ui-conversation SlotMap merge (the composer dock entry).
+// Type-only: pulls the ui-conversation SlotMap merge (the composer tool row entry).
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import type {} from '@deepseek-ai/dsh-client-connection/client'
@@ -44,10 +44,10 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
 /** Dictionary namespace owned by this plugin. */
 const NS = 'ocgo'
 
-/** Required services: slots for the composer-dock entry, locale for the copy. */
+/** Required services: slots for the composer tool-row entry, locale for the copy. */
 export const inject = ['slots', 'locale']
 
-/** The injected business face: the dock's owning session plus a live provider read. */
+/** The injected business face: the tool row's owning session plus a live provider read. */
 export interface OcgoInjected {
   /** The session this dock entry renders for (slot inject factory arg). */
   dockSessionId: string | undefined
@@ -60,7 +60,7 @@ export interface OcgoInjected {
 }
 
 /**
- * Register the usage chip into the composer dock band.
+ * Register the usage chip into the composer tool row next to the model selector.
  * @param ctx - client root context.
  */
 export function apply(ctx: ClientContext): void {
@@ -68,7 +68,7 @@ export function apply(ctx: ClientContext): void {
 
   ctx.inject(['slots', 'conversation', 'connection'], (scope: ClientContext) => {
     scope.effect(() => scope.slots.register({
-      name: 'conversation.composer.dock',
+      name: 'conversation.input.right',
       id: 'ocgo-usage',
       order: 110,
       locale: NS,

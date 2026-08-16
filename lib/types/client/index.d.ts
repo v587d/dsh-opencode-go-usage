@@ -1,12 +1,12 @@
 /**
  * dsh-ocgo-usage browser half — registers the OpenCode Go usage chip into
- * the composer dock band (`conversation.composer.dock`, the same seat the
- * official conversation stats line uses) and reads the host's same-origin
- * `/api/ocgo-usage` JSON endpoints: poll the host snapshot (every 10 s),
+ * the composer tool row (`conversation.input.right`, next to the model
+ * selector) and reads the host's same-origin `/api/ocgo-usage` JSON endpoints:
+ * poll the host snapshot (every 10 s),
  * refresh on demand. The chip shows the three usage windows (rolling 5h /
- * weekly / monthly) with reset countdowns; while the host reports no usable
- * data (missing config, cookie error, or provider failure) it renders a
- * compact `<err:code>` state with a manual refresh action.
+ * weekly / monthly) in a compact form; while the host reports no usable data
+ * (missing config, cookie error, or provider failure) it renders a compact
+ * `<err:code>` state with a manual refresh action.
  *
  * Provider visibility is decided CLIENT-side from the live model selection:
  * `session.models` reads the in-memory current selection (2-3 ms warm, no
@@ -28,9 +28,9 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
         ocgo: OcgoKey;
     }
 }
-/** Required services: slots for the composer-dock entry, locale for the copy. */
+/** Required services: slots for the composer tool-row entry, locale for the copy. */
 export declare const inject: string[];
-/** The injected business face: the dock's owning session plus a live provider read. */
+/** The injected business face: the tool row's owning session plus a live provider read. */
 export interface OcgoInjected {
     /** The session this dock entry renders for (slot inject factory arg). */
     dockSessionId: string | undefined;
@@ -42,7 +42,7 @@ export interface OcgoInjected {
     provider(): Promise<string | undefined>;
 }
 /**
- * Register the usage chip into the composer dock band.
+ * Register the usage chip into the composer tool row next to the model selector.
  * @param ctx - client root context.
  */
 export declare function apply(ctx: ClientContext): void;

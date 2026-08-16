@@ -1,11 +1,12 @@
 /**
- * The composer dock entry: the OpenCode Go usage readout, mounted in the
- * composer dock band (`conversation.composer.dock`) beside the conversation
- * stats line. The chip polls the host `/api/ocgo-usage` endpoint for the
- * three usage windows (rolling 5h / weekly / monthly); clicking reveals
- * per-window reset countdowns, a Set editor (masked workspace/cookie) and a
- * manual refresh. In the error state, clicking the chip opens the Set editor
- * directly so a stale credential can be replaced in place.
+ * The composer tool-row entry: the OpenCode Go usage readout, mounted in the
+ * composer tool row (`conversation.input.right`) next to the model selector.
+ * The chip polls the host `/api/ocgo-usage` endpoint for the three usage
+ * windows (rolling 5h / weekly / monthly);
+ * clicking reveals per-window reset countdowns, a Set editor (masked
+ * workspace/cookie) and a manual refresh. In the error state, clicking the
+ * chip opens the Set editor directly so a stale credential can be replaced in
+ * place.
  * @module dsh-ocgo-usage/client/OcgoDockEntry
  */
 
@@ -48,7 +49,7 @@ const ocgoApi = {
 
 /** Composed props of the dock entry (runtime + locale + injected session/provider face). */
 export type OcgoDockEntryProps =
-  PropsRuntime<'conversation.composer.dock'>
+  PropsRuntime<'conversation.input.right'>
   & PropsLocale<typeof NS>
   & { dockSessionId?: string | undefined; provider?: () => Promise<string | undefined> }
 
@@ -90,22 +91,38 @@ function formatClock(epochMs: number): string {
   return `${hh}:${mm}`
 }
 
-/** The severity class of one window (muted → warn → err). */
+/** The severity class of one window (muted → escalating warn → err). */
 function severityClass(window: UsageWindow): string | undefined {
-  if (window.status === 'rate-limited' || window.percent >= 90) return css.segErr
-  if (window.percent >= 80) return css.segWarn
+  if (window.status === 'rate-limited' || window.percent >= 90) return css.segCrit90
+  if (window.percent >= 80) return css.segErr80
+  if (window.percent >= 70) return css.segWarn70
+  if (window.percent >= 60) return css.segWarn60
+  if (window.percent >= 50) return css.segWarn50
   return undefined
 }
 
-/** Render one window segment: `· 5h 23% (3h 25m)`. */
-function WindowSegment(props: { window: UsageWindow; sep: string }): React.ReactElement {
-  const { window, sep } = props
+/** The official OpenCode Go logo mark, inlined to avoid extra asset requests. */
+function OcgoLogo(): React.ReactElement {
+  return (
+    <svg className={css.logo} width="22" height="12" viewBox="0 0 54 30" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M24 30H0V0H24V6H6V24H18V18H12V12H24V30Z" fill="#211E1E" />
+      <path d="M12 18H18V24H6V12H12V18Z" fill="#CFCECD" />
+      <path d="M48 12V24H36V12H48Z" fill="#CFCECD" />
+      <path d="M54 30H30V0H54V30ZM36 24H48V6H36V24Z" fill="#211E1E" />
+    </svg>
+  )
+}
+
+/** Render one window segment: compact `· 5h 23%`, full `· 5h 23% (3h 25m)`. */
+function WindowSegment(props: { window: UsageWindow; sep: string; compact?: boolean }): React.ReactElement {
+  const { window, sep, compact = false } = props
   const cls = severityClass(window)
   return (
     <span className={css.seg}>
       <span className={css.segSep}>{sep}</span>
       <span className={cls ?? undefined}>
-        {WINDOW_LABELS[window.kind]} {window.percent}% ({formatDuration(window.resetInSec)})
+        {WINDOW_LABELS[window.kind]} {window.percent}%
+        {!compact ? ` (${formatDuration(window.resetInSec)})` : ''}
       </span>
     </span>
   )
@@ -288,7 +305,7 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
           onClick={() => { if (open) closePanel(); else openSet() }}
           title={`${error.message}\n${t('ocgo.set')}`}
         >
-          {t('ocgo.label')}: &lt;err:{error.code}&gt;
+          <OcgoLogo /> &lt;err:{error.code}&gt;
         </button>
         {open && (
           <span className={css.details}>
@@ -348,7 +365,7 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
         title={t('ocgo.refresh')}
         data-testid="ocgo-chip-empty"
       >
-        {t('ocgo.label')}: {t('ocgo.unavailable')}
+        <OcgoLogo /> {t('ocgo.unavailable')}
       </button>
     )
   }
@@ -361,13 +378,15 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
         onClick={() => { if (open) closePanel(); else setOpen(true) }}
         title={open ? t('ocgo.collapse') : t('ocgo.expand')}
       >
-        <span>{t('ocgo.label')}:</span>
+        <OcgoLogo />
         {windows.map((w) => (
-          <WindowSegment key={w.kind} window={w} sep={sep} />
+          <WindowSegment key={w.kind} window={w} sep={sep} compact />
         ))}
-        {snapshot.updatedAt !== undefined && (
-          <span className={css.segSep}>{sep}{t('ocgo.fetchedAt', { time: formatClock(snapshot.updatedAt) })}</span>
-        )}
+        <span className={open ? `${css.chevron} ${css.chevronOpen}` : css.chevron} aria-hidden="true">
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
       </button>
       {open && (
         <span className={css.details}>

@@ -1,4 +1,4 @@
-/* dsh-ocgo-usage composer dock chip styles. */
+/* dsh-ocgo-usage composer tool-row chip styles. */
 .wrap {
   position: relative;
   display: inline-flex;
@@ -8,22 +8,23 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 22px;
-  padding: 0 8px;
-  border: 1px solid var(--dsh-color-border, rgba(128, 128, 128, 0.35));
+  height: 24px;
+  padding: 0 6px 0 8px;
+  border: 0;
   border-radius: 999px;
-  background: var(--dsh-color-surface, transparent);
-  color: var(--dsh-color-text, inherit);
+  background: transparent;
+  color: var(--dsw-alias-label-primary, #0f1115);
   font-size: 12px;
   line-height: 1;
   cursor: pointer;
   white-space: nowrap;
   user-select: none;
+  transition: background-color 0.12s ease;
 }
 
 .chip:hover,
 .chipOpen {
-  border-color: var(--dsh-color-accent, rgba(80, 160, 255, 0.7));
+  background: var(--dsw-alias-interactive-bg-hover, rgba(38, 49, 72, 0.06));
 }
 
 .seg {
@@ -36,12 +37,41 @@
   opacity: 0.45;
 }
 
-.segWarn {
-  color: var(--dsh-color-warning, #d29922);
+.logo {
+  display: inline-flex;
+  flex: none;
 }
 
-.segErr {
-  color: var(--dsh-color-danger, #e5534b);
+.chevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--dsw-alias-label-caption, #81858c);
+  transition: transform 0.12s ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.segWarn50 {
+  color: var(--dsw-static-amber-400, #f7ad31);
+}
+
+.segWarn60 {
+  color: var(--dsw-static-amber-500, #f59e0b);
+}
+
+.segWarn70 {
+  color: var(--dsw-static-amber-600, #dd8629);
+}
+
+.segErr80 {
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+}
+
+.segCrit90 {
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+  font-weight: 600;
 }
 
 .details {
@@ -55,11 +85,11 @@
   gap: 6px;
   min-width: 220px;
   padding: 8px 10px;
-  border: 1px solid var(--dsh-color-border, rgba(128, 128, 128, 0.35));
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
   border-radius: 8px;
-  background: var(--dsh-color-surface-elevated, #1f1f1f);
-  color: var(--dsh-color-text, inherit);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  background: var(--dsw-specific-menu, #ffffff);
+  color: var(--dsw-alias-label-primary, #0f1115);
+  box-shadow: var(--dsw-shadow-lv3, 0 4px 12px rgba(0, 0, 0, 0.08));
   font-size: 12px;
 }
 
@@ -74,7 +104,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: var(--dsh-color-text-secondary, inherit);
+  color: var(--dsw-alias-label-secondary, #61666b);
   opacity: 0.9;
 }
 
@@ -96,7 +126,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  border-top: 1px solid var(--dsh-color-border, rgba(128, 128, 128, 0.25));
+  border-top: 1px solid var(--dsw-alias-border-l1, rgba(0, 0, 0, 0.04));
   padding-top: 6px;
   font-size: 11px;
 }
@@ -112,7 +142,7 @@
 .setBtn {
   border: 0;
   background: 0 0;
-  color: var(--dsh-color-accent, rgba(80, 160, 255, 0.9));
+  color: var(--dsw-alias-state-business-primary, #3964fe);
   font-size: 11px;
   cursor: pointer;
   padding: 0;
@@ -129,7 +159,7 @@
 .refreshBtn {
   border: 0;
   background: 0 0;
-  color: var(--dsh-color-accent, rgba(80, 160, 255, 0.9));
+  color: var(--dsw-alias-state-business-primary, #3964fe);
   font-size: 11px;
   cursor: pointer;
   padding: 0;
@@ -154,7 +184,7 @@
 }
 
 .fieldLabel {
-  color: var(--dsh-color-text-secondary, inherit);
+  color: var(--dsw-alias-label-secondary, #61666b);
   opacity: 0.75;
   font-size: 11px;
   font-variant-numeric: tabular-nums;
@@ -163,9 +193,9 @@
 .fieldInput {
   box-sizing: border-box;
   width: 100%;
-  border: 1px solid var(--dsh-color-border, rgba(128, 128, 128, 0.35));
-  background: var(--dsh-color-surface, transparent);
-  color: var(--dsh-color-text, inherit);
+  border: 1px solid var(--dsw-alias-border-l2, rgba(0, 0, 0, 0.1));
+  background: var(--dsw-alias-bg-layer-1, #ffffff);
+  color: var(--dsw-alias-label-primary, #0f1115);
   border-radius: 6px;
   height: 26px;
   padding: 0 8px;
@@ -175,7 +205,7 @@
 }
 
 .fieldInput:focus {
-  border-color: var(--dsh-color-accent, rgba(80, 160, 255, 0.7));
+  border-color: var(--dsw-alias-state-business-primary, #3964fe);
 }
 
 .setHint {
@@ -184,7 +214,7 @@
 }
 
 .errorText {
-  color: var(--dsh-color-danger, #e5534b);
+  color: var(--dsw-alias-state-error-primary, #dc2626);
   font-size: 11px;
   max-width: 240px;
   white-space: normal;

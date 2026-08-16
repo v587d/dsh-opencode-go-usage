@@ -1,17 +1,18 @@
 /**
- * The composer dock entry: the OpenCode Go usage readout, mounted in the
- * composer dock band (`conversation.composer.dock`) beside the conversation
- * stats line. The chip polls the host `/api/ocgo-usage` endpoint for the
- * three usage windows (rolling 5h / weekly / monthly); clicking reveals
- * per-window reset countdowns, a Set editor (masked workspace/cookie) and a
- * manual refresh. In the error state, clicking the chip opens the Set editor
- * directly so a stale credential can be replaced in place.
+ * The composer tool-row entry: the OpenCode Go usage readout, mounted in the
+ * composer tool row (`conversation.input.right`) next to the model selector.
+ * The chip polls the host `/api/ocgo-usage` endpoint for the three usage
+ * windows (rolling 5h / weekly / monthly);
+ * clicking reveals per-window reset countdowns, a Set editor (masked
+ * workspace/cookie) and a manual refresh. In the error state, clicking the
+ * chip opens the Set editor directly so a stale credential can be replaced in
+ * place.
  * @module dsh-ocgo-usage/client/OcgoDockEntry
  */
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import { NS } from './locales.ts';
 /** Composed props of the dock entry (runtime + locale + injected session/provider face). */
-export type OcgoDockEntryProps = PropsRuntime<'conversation.composer.dock'> & PropsLocale<typeof NS> & {
+export type OcgoDockEntryProps = PropsRuntime<'conversation.input.right'> & PropsLocale<typeof NS> & {
     dockSessionId?: string | undefined;
     provider?: () => Promise<string | undefined>;
 };
