@@ -105,13 +105,13 @@ function severityClass(window: UsageWindow): string | undefined {
 function useDarkMode(): boolean {
   const [dark, setDark] = useState<boolean>(() => {
     if (typeof document === 'undefined') return false
-    return document.body.dataset.dsDarkTheme === 'true'
+    return document.body.hasAttribute('data-ds-dark-theme')
   })
   useEffect(() => {
     const el = document.body
     if (!el) return
     const observer = new MutationObserver(() => {
-      setDark(el.dataset.dsDarkTheme === 'true')
+      setDark(el.hasAttribute('data-ds-dark-theme'))
     })
     observer.observe(el, { attributes: true, attributeFilter: ['data-ds-dark-theme'] })
     return () => observer.disconnect()
