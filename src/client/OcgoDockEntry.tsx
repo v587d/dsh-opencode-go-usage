@@ -101,8 +101,37 @@ function severityClass(window: UsageWindow): string | undefined {
   return undefined
 }
 
+/** Detect dark mode via DSH body attribute. */
+function useDarkMode(): boolean {
+  const [dark, setDark] = useState<boolean>(() => {
+    if (typeof document === 'undefined') return false
+    return document.body.dataset.dsDarkTheme === 'true'
+  })
+  useEffect(() => {
+    const el = document.body
+    if (!el) return
+    const observer = new MutationObserver(() => {
+      setDark(el.dataset.dsDarkTheme === 'true')
+    })
+    observer.observe(el, { attributes: true, attributeFilter: ['data-ds-dark-theme'] })
+    return () => observer.disconnect()
+  }, [])
+  return dark
+}
+
 /** The official OpenCode Go logo mark, inlined to avoid extra asset requests. */
 function OcgoLogo(): React.ReactElement {
+  const dark = useDarkMode()
+  if (dark) {
+    return (
+      <svg className={css.logo} width="22" height="12" viewBox="0 0 54 30" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path d="M24 30H0V0H24V6H6V24H18V18H12V12H24V30Z" fill="#B0B0B0" />
+        <path d="M12 18H18V24H6V12H12V18Z" fill="#FFFFFF" />
+        <path d="M48 12V24H36V12H48Z" fill="#FFFFFF" />
+        <path d="M54 30H30V0H54V30ZM36 24H48V6H36V24Z" fill="#B0B0B0" />
+      </svg>
+    )
+  }
   return (
     <svg className={css.logo} width="22" height="12" viewBox="0 0 54 30" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
       <path d="M24 30H0V0H24V6H6V24H18V18H12V12H24V30Z" fill="#211E1E" />
