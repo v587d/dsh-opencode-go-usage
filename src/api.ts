@@ -125,8 +125,10 @@ export function fromSSRHTML(html: string): Omit<NormalizedUsage, 'updatedAt'> {
     const block = html.slice(starts[i], starts[i + 1] ?? html.length)
     const labelMatch = block.match(/data-slot="usage-label"[^>]*>([^<]+)</)
     const valueMatch = block.match(/data-slot="usage-value"[\s\S]*?<!--\$-->\s*(\d+)\s*<!--\/-->/)
+    // The page renders the reset phrase in the UI locale — "Resets in"
+    // (en) or "重置于" (zh) — so accept both.
     const resetMatch = block.match(
-      /data-slot="reset-time"[\s\S]*?Resets in(?:<!--\/-->\s*)?([\s\S]*?)(?:<!--\/-->|<\/span>)/,
+      /data-slot="reset-time"[\s\S]*?(?:Resets in|重置于)(?:<!--\/-->\s*)?([\s\S]*?)(?:<!--\/-->|<\/span>)/,
     )
     if (!labelMatch || !valueMatch) continue
     const label = labelMatch[1]?.trim() ?? ''
@@ -155,9 +157,14 @@ export function fromSSRHTML(html: string): Omit<NormalizedUsage, 'updatedAt'> {
 
 function labelToKind(label: string): UsageWindowKind | undefined {
   const lower = label.toLowerCase()
+  // English labels ("Rolling Usage", "Weekly Usage", "Monthly Usage").
   if (lower.startsWith('rolling')) return 'rolling'
   if (lower.startsWith('weekly')) return 'weekly'
   if (lower.startsWith('monthly')) return 'monthly'
+  // Chinese labels rendered for zh locale ("滚动用量", "每周用量", "每月用量").
+  if (lower.startsWith('滚动')) return 'rolling'
+  if (lower.startsWith('每周')) return 'weekly'
+  if (lower.startsWith('每月')) return 'monthly'
   return undefined
 }
 
@@ -167,11 +174,15 @@ function stripHtmlComments(s: string): string {
 }
 
 /**
- * Parse a human duration phrase into seconds. Examples:
- *   "2 hours 29 minutes" → 8940
- *   "45 minutes"          → 2700
- *   "5 days"              → 432000
- *   "30 seconds"          → 30
+ * Parse a human duration phrase into seconds. Examples (English plus the
+ * Chinese renderings used by the zh locale):
+ *   "2 hours 29 minutes" → 8940      "2 小时 29 分钟" → 8940
+ *   "45 minutes"          → 2700     "45 分钟"         → 2700
+ *   "5 days"              → 432000   "5 天"            → 432000
+ *   "30 seconds"          → 30       "30 秒"           → 30
+ *   "1 week"              → 604800   "1 周"            → 604800
+ *   "1 month"             → 2592000  "1 个月"          → 2592000
+ *   "1 year"              → 31536000 "1 年"            → 31536000
  *
  * Returns 0 on unrecognized input.
  */
@@ -183,7 +194,7 @@ export function parseDurationToSec(phrase: string): number {
   const p = cleaned.trim().replace(/\s+/g, ' ').toLowerCase()
   if (!p) return 0
 
-  const re = /(\d+)\s*(second|minute|hour|day|week|month|year)s?/g
+  const re = /(\d+)\s*(?:个\s*)?(second|minute|hour|day|week|month|year|秒|分钟|小时|天|周|月|年)s?/g
   let total = 0
   let matched = false
   let m = re.exec(p)
@@ -193,24 +204,31 @@ export function parseDurationToSec(phrase: string): number {
     matched = true
     switch (unit) {
       case 'second':
+      case '秒':
         total += n
         break
       case 'minute':
+      case '分钟':
         total += n * 60
         break
       case 'hour':
+      case '小时':
         total += n * 3600
         break
       case 'day':
+      case '天':
         total += n * 86400
         break
       case 'week':
+      case '周':
         total += n * 604800
         break
       case 'month':
+      case '月':
         total += n * 2592000 // 30 days; coarse but adequate for display
         break
       case 'year':
+      case '年':
         total += n * 31536000
         break
     }

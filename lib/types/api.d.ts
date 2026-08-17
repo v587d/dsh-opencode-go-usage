@@ -29,11 +29,15 @@ export declare function fetchViaCookie(cfg: OcgoConfig): Promise<Omit<Normalized
  */
 export declare function fromSSRHTML(html: string): Omit<NormalizedUsage, 'updatedAt'>;
 /**
- * Parse a human duration phrase into seconds. Examples:
- *   "2 hours 29 minutes" → 8940
- *   "45 minutes"          → 2700
- *   "5 days"              → 432000
- *   "30 seconds"          → 30
+ * Parse a human duration phrase into seconds. Examples (English plus the
+ * Chinese renderings used by the zh locale):
+ *   "2 hours 29 minutes" → 8940      "2 小时 29 分钟" → 8940
+ *   "45 minutes"          → 2700     "45 分钟"         → 2700
+ *   "5 days"              → 432000   "5 天"            → 432000
+ *   "30 seconds"          → 30       "30 秒"           → 30
+ *   "1 week"              → 604800   "1 周"            → 604800
+ *   "1 month"             → 2592000  "1 个月"          → 2592000
+ *   "1 year"              → 31536000 "1 年"            → 31536000
  *
  * Returns 0 on unrecognized input.
  */
