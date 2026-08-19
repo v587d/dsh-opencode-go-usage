@@ -175,7 +175,7 @@ MIT —— 见 [LICENSE](./LICENSE)。
 - **🎨 深色模式优化**：调整 Logo 在深色主题下的对比度，视觉更舒适
 - **🧪 完整测试覆盖**：新增中文场景单元测试，确保解析准确性
 
-特别感谢 [@v587d](https://github.com/v587d) 贡献了核心的中文本地化功能！🙏
+特别感谢 [@waknow](https://github.com/waknow) 贡献了核心的中文本地化功能！🙏
 
 > 💡 **版本选择建议**：
 > - 喜欢纯英文界面？继续使用 [v1.1.0](https://github.com/v587d/dsh-opencode-go-usage/releases/tag/v1.1.0)
