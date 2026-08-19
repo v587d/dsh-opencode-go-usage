@@ -98,6 +98,44 @@ describe('fromSSRHTML', () => {
     const parsed = fromSSRHTML(page)
     expect(parsed.monthly?.percent).toBe(100)
   })
+
+  it('parses a zh-locale page (Chinese labels and reset phrases)', () => {
+    const zhPage = `
+      <div data-slot="usage-item">
+        <span data-slot="usage-label">滚动用量</span>
+        <span data-slot="usage-value"><!--$-->27<!--/-->%</span>
+        <span data-slot="reset-time"><!--$-->重置于<!--/-->3 小时 37 分钟<!--/--></span>
+      </div>
+      <div data-slot="usage-item">
+        <span data-slot="usage-label">每周用量</span>
+        <span data-slot="usage-value"><!--$-->15<!--/-->%</span>
+        <span data-slot="reset-time"><!--$-->重置于<!--/-->6 天 15 小时<!--/--></span>
+      </div>
+      <div data-slot="usage-item">
+        <span data-slot="usage-label">每月用量</span>
+        <span data-slot="usage-value"><!--$-->20<!--/-->%</span>
+        <span data-slot="reset-time"><!--$-->重置于<!--/-->15 天 17 小时<!--/--></span>
+      </div>`
+    const parsed = fromSSRHTML(zhPage)
+    expect(parsed.rolling).toEqual({
+      kind: 'rolling',
+      percent: 27,
+      resetInSec: 3 * 3600 + 37 * 60,
+      status: 'ok',
+    })
+    expect(parsed.weekly).toEqual({
+      kind: 'weekly',
+      percent: 15,
+      resetInSec: 6 * 86400 + 15 * 3600,
+      status: 'ok',
+    })
+    expect(parsed.monthly).toEqual({
+      kind: 'monthly',
+      percent: 20,
+      resetInSec: 15 * 86400 + 17 * 3600,
+      status: 'ok',
+    })
+  })
 })
 
 describe('parseDurationToSec', () => {
@@ -109,6 +147,13 @@ describe('parseDurationToSec', () => {
     ['1 week', 604800],
     ['1 month', 2592000],
     ['1 year', 31536000],
+    ['2 小时 29 分钟', 2 * 3600 + 29 * 60],
+    ['45 分钟', 45 * 60],
+    ['5 天', 5 * 86400],
+    ['30 秒', 30],
+    ['1 周', 604800],
+    ['1 个月', 2592000],
+    ['1 年', 31536000],
     ['', 0],
     ['garbage text', 0],
   ])('parses %j → %i', (phrase, expected) => {
