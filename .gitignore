@@ -1,16 +1,1 @@
-# Dependencies and build cache
-node_modules/
-*.tsbuildinfo
-
-# Local session/journal files
-*.jsonl
-*.log
-
-# npm auth config (contains token references; never commit)
-.npmrc
-
-# OS noise
-.DS_Store
-
-# 本地内部文档（不公开，避免泄露内部信息与凭据线索）
-AGENTS.md
+Nothing should be ignored since only a README.md file was modified and no build artifacts, dependencies, or temporary files were detected in the changes.
