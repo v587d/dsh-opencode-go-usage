@@ -162,43 +162,60 @@ function pickString(envVal: string | undefined, fileVal: string | undefined): st
 }
 
 /**
- * Normalize a user-provided cookie string into a valid `Cookie:` header value.
+ * Normalize a user-provided cookie string into a valid `Cookie:` header value
+ * for the opencode console HTTP request.
  *
- * Accepts three forms:
+ * Accepts, order-independently:
  *  1. Full header: "auth=Fe26.2*...; oc_locale=zh"   (passthrough)
- *  2. Single value: "Fe26.2*..."                    (auto-prefix "auth=")
- *  3. Two-segment:  "Fe26.2*...; oc_locale=zh"       (auto-prefix "auth=",
- *                                                       keep oc_locale)
+ *  2. Single bare value: "Fe26.2*..."                (auto-prefix "auth=")
+ *  3. Two-segment value+locale: "Fe26.2*...; oc_locale=zh"
+ *  4. Locale + auth in any order (incl. `oc_locale=zh` BEFORE `auth=`).
  *
- * Strips leading/trailing whitespace, collapses internal whitespace, and
- * defaults `oc_locale=en` when only the auth value is present.
+ * The original implementation decided "the first segment is the auth value"
+ * whenever the string did not start with `auth=`. That silently corrupted
+ * real browser cookies like `oc_locale=zh; desktop_promo_dismissed=1;
+ * auth=Fe26.2*...` into `auth=oc_locale=zh; ...` — a fake cookie that
+ * opencode.ai rejects with a redirect to the login page.
+ *
+ * Fixes:
+ *  - The `auth=` segment is located anywhere in the string, not assumed to
+ *    be first.
+ *  - If no `auth=` pair and no bare opaque token is present, `undefined` is
+ *    returned so the caller REFUSES to persist a broken cookie rather than
+ *    fabricating `auth=<locale>`.
+ *  - The `oc_locale` is preserved from the pasted cookie (so a zh user keeps
+ *    the Chinese console page, which the parser now supports), defaulting to
+ *    `en` when absent. Only a well-formed short locale (e.g. `en`, `zh`, `ja`)
+ *    is kept; anything malformed falls back to `en`.
+ *  - All other segments (UI prefs like `desktop_promo_dismissed`) are
+ *    dropped; only the auth token and the locale are ever sent.
  */
 export function normalizeCookie(input: string | undefined): string | undefined {
   if (!input) return undefined
-  const trimmed = input.trim().replace(/\s+/g, ' ')
+  const trimmed = input.trim()
   if (!trimmed) return undefined
 
-  const hasAuthPrefix = /^auth=/.test(trimmed)
-  const segments = trimmed.split(/;\s*/).filter(Boolean)
-  const ocLocale = segments.find((s) => s.startsWith('oc_locale='))
+  const segments = trimmed.split(/[;,]/).map((s) => s.trim()).filter(Boolean)
 
-  if (hasAuthPrefix) {
-    // Already valid: just ensure oc_locale exists. Re-stitch from
-    // segments so any extra whitespace in the original gets normalized.
-    const authSeg = (segments.find((s) => s.startsWith('auth=')) ?? segments[0] ?? '').trim()
-    const ocSeg = ocLocale ?? 'oc_locale=en'
-    return `${authSeg}; ${ocSeg}`
+  // 1) Auth token — order-independent.
+  let auth = segments.find((s) => /^auth=/i.test(s))
+  if (auth === undefined) {
+    // A bare token (no "=") that looks like an opaque auth value.
+    const bare = segments.find((s) => !s.includes('=') && s.length >= 8)
+    if (bare !== undefined) auth = `auth=${bare}`
   }
+  if (auth === undefined) return undefined
 
-  // User pasted just the auth value (possibly with oc_locale appended).
-  // The first segment is the auth value; prepend "auth=".
-  const authValue = (segments[0] ?? '').trim()
-  const extras = segments
-    .slice(1)
-    .map((s) => s.trim())
-    .filter(Boolean)
-  const ocLocale2 = extras.find((s) => s.startsWith('oc_locale=')) ?? 'oc_locale=en'
-  return `auth=${authValue}; ${ocLocale2}`
+  const authValue = auth.slice(auth.indexOf('=') + 1).trim().replace(/^"|"$/g, '')
+  if (authValue.length === 0) return undefined
+
+  // 2) Locale — preserve the pasted one (the zh parser understands zh pages),
+  //    fall back to `en` when absent or malformed.
+  const localeSeg = segments.find((s) => /^oc_locale=/i.test(s))
+  const rawLocale = localeSeg ? localeSeg.slice(localeSeg.indexOf('=') + 1).trim() : ''
+  const locale = /^[A-Za-z]{2,3}$/.test(rawLocale) ? rawLocale.toLowerCase() : 'en'
+
+  return `auth=${authValue}; oc_locale=${locale}`
 }
 
 function pickNumber(
