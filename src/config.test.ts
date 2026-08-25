@@ -43,7 +43,7 @@ function restoreEnv(saved: Record<string, string | undefined>): void {
 }
 
 describe('normalizeCookie', () => {
-  it('passes through a full header and guarantees oc_locale', () => {
+  it('passes through a full header and preserves its locale', () => {
     expect(normalizeCookie('auth=Fe26.2*abc; oc_locale=zh')).toBe('auth=Fe26.2*abc; oc_locale=zh')
     expect(normalizeCookie('auth=Fe26.2*abc')).toBe('auth=Fe26.2*abc; oc_locale=en')
   })
@@ -52,8 +52,46 @@ describe('normalizeCookie', () => {
     expect(normalizeCookie('Fe26.2*abc')).toBe('auth=Fe26.2*abc; oc_locale=en')
   })
 
-  it('keeps oc_locale when pasted with the auth value', () => {
+  it('preserves a pasted locale (zh stays zh, ja stays ja)', () => {
     expect(normalizeCookie('Fe26.2*abc; oc_locale=zh')).toBe('auth=Fe26.2*abc; oc_locale=zh')
+    expect(normalizeCookie('Fe26.2*abc; oc_locale=ja')).toBe('auth=Fe26.2*abc; oc_locale=ja')
+  })
+
+  it('falls back to en when the locale is absent or malformed', () => {
+    expect(normalizeCookie('auth=Fe26.2*abc')).toBe('auth=Fe26.2*abc; oc_locale=en')
+    expect(normalizeCookie('auth=Fe26.2*abc; oc_locale=')).toBe('auth=Fe26.2*abc; oc_locale=en')
+    expect(normalizeCookie('auth=Fe26.2*abc; oc_locale=verylonglocale')).toBe(
+      'auth=Fe26.2*abc; oc_locale=en',
+    )
+  })
+
+  it('is order-independent and never corrupts locale-first cookies (regression)', () => {
+    // The old code turned "oc_locale=zh; ...; auth=..." into
+    // "auth=oc_locale=zh; ...". This must never happen.
+    expect(normalizeCookie('oc_locale=zh; auth=Fe26.2*abc')).toBe('auth=Fe26.2*abc; oc_locale=zh')
+    expect(normalizeCookie('oc_locale=en; desktop_promo_dismissed=1; auth=Fe26.2*abc')).toBe(
+      'auth=Fe26.2*abc; oc_locale=en',
+    )
+  })
+
+  it('accepts comma-separated cookies (Set-Cookie style)', () => {
+    expect(normalizeCookie('oc_locale=zh, desktop_promo_dismissed=1, auth=Fe26.2*abc')).toBe(
+      'auth=Fe26.2*abc; oc_locale=zh',
+    )
+  })
+
+  it('accepts a quoted auth value', () => {
+    expect(normalizeCookie('auth="Fe26.2*quoted"; oc_locale=en')).toBe(
+      'auth=Fe26.2*quoted; oc_locale=en',
+    )
+  })
+
+  it('rejects input with no real auth token (no fake auth=)', () => {
+    // Regression: the old code fabricated "auth=oc_locale=zh; ..." from a
+    // locale-only paste. Now it refuses instead.
+    expect(normalizeCookie('oc_locale=zh')).toBeUndefined()
+    expect(normalizeCookie('zh')).toBeUndefined()
+    expect(normalizeCookie('desktop_promo_dismissed=1; auth=')).toBeUndefined()
   })
 
   it('normalizes whitespace and rejects empty input', () => {
@@ -161,7 +199,9 @@ describe('masked config view + write', () => {
     process.env[ENV_COOKIE] = cookie
     process.env[ENV_WORKSPACE_ID] = ws
     const view = maskedConfigView()
-    expect(view.cookie).toEqual({ set: true, tail: cookie.slice(-4) })
+    // The env cookie is normalized on load: locale is preserved as zh.
+    const normalized = 'auth=Fe26.2*secret-cookie-9abc; oc_locale=zh'
+    expect(view.cookie).toEqual({ set: true, tail: normalized.slice(-4) })
     expect(view.workspaceID).toEqual({ set: true, tail: ws.slice(-4) })
     expect(JSON.stringify(view)).not.toContain('secret-cookie')
   })

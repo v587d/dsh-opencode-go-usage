@@ -49,16 +49,33 @@ export declare function writeConfigFile(partial: {
     workspaceID?: string | null;
 }): MaskedConfigView;
 /**
- * Normalize a user-provided cookie string into a valid `Cookie:` header value.
+ * Normalize a user-provided cookie string into a valid `Cookie:` header value
+ * for the opencode console HTTP request.
  *
- * Accepts three forms:
+ * Accepts, order-independently:
  *  1. Full header: "auth=Fe26.2*...; oc_locale=zh"   (passthrough)
- *  2. Single value: "Fe26.2*..."                    (auto-prefix "auth=")
- *  3. Two-segment:  "Fe26.2*...; oc_locale=zh"       (auto-prefix "auth=",
- *                                                       keep oc_locale)
+ *  2. Single bare value: "Fe26.2*..."                (auto-prefix "auth=")
+ *  3. Two-segment value+locale: "Fe26.2*...; oc_locale=zh"
+ *  4. Locale + auth in any order (incl. `oc_locale=zh` BEFORE `auth=`).
  *
- * Strips leading/trailing whitespace, collapses internal whitespace, and
- * defaults `oc_locale=en` when only the auth value is present.
+ * The original implementation decided "the first segment is the auth value"
+ * whenever the string did not start with `auth=`. That silently corrupted
+ * real browser cookies like `oc_locale=zh; desktop_promo_dismissed=1;
+ * auth=Fe26.2*...` into `auth=oc_locale=zh; ...` — a fake cookie that
+ * opencode.ai rejects with a redirect to the login page.
+ *
+ * Fixes:
+ *  - The `auth=` segment is located anywhere in the string, not assumed to
+ *    be first.
+ *  - If no `auth=` pair and no bare opaque token is present, `undefined` is
+ *    returned so the caller REFUSES to persist a broken cookie rather than
+ *    fabricating `auth=<locale>`.
+ *  - The `oc_locale` is preserved from the pasted cookie (so a zh user keeps
+ *    the Chinese console page, which the parser now supports), defaulting to
+ *    `en` when absent. Only a well-formed short locale (e.g. `en`, `zh`, `ja`)
+ *    is kept; anything malformed falls back to `en`.
+ *  - All other segments (UI prefs like `desktop_promo_dismissed`) are
+ *    dropped; only the auth token and the locale are ever sent.
  */
 export declare function normalizeCookie(input: string | undefined): string | undefined;
 //# sourceMappingURL=config.d.ts.map
