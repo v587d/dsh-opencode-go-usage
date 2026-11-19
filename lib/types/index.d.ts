@@ -14,7 +14,7 @@ export type { OcgoUsageConfig, OcgoUsageView } from './service.ts';
 export { OCGO_API_PREFIX, makeOcgoRoutes } from './routes.ts';
 export { loadConfig, normalizeCookie, configFilePath } from './config.ts';
 export type { NormalizedUsage, OcgoConfig, UsageWindow, UsageWindowKind, UsageStatus } from './types.ts';
-export { fetchUsage, fromSSRHTML, parseDurationToSec, UsageError } from './api.ts';
+export { fetchUsage, fromConsoleStatus, GO_STATUS_PATH, UsageError } from './api.ts';
 /** Stable cordis plugin name (matches cordis.patch.yml insert id). */
 export declare const name = "ocgo-usage";
 /** Services required before the usage service can answer. */

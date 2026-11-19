@@ -1,4 +1,8 @@
 # Build & tooling caches that must never be committed.
 node_modules/
+
+# Local pnpm home/store kept inside the workspace (the host dirs are read-only).
+.home/
+.pnpm-store/
 lib/tsconfig.tsbuildinfo
 *.tsbuildinfo

@@ -19,12 +19,12 @@ OpenCode Go: 5h 0% (1h 23m) · wk 65% (2d 20h) · mo 83% (6d 21h) · upd 20:15
 ## Features
 
 - **Three windows** — rolling (5h) / weekly / monthly percent + reset countdown
-- **Color thresholds** — muted → warning (≥80%) → error (≥90% or rate-limited)
+- **Status colors** — a 6 px dot in front of each window: green (<50%) → amber (50–79%) → red (≥80% or rate-limited); the percentage stays neutral and only takes colour from 50%, turning bold red at 80%
 - **Data freshness** — `upd HH:MM` shows the last successful fetch time
 - **Lightweight polling** — every 10 s (and on tab refocus); the host caches for 300 s (TTL configurable) with a 60 s failure cooldown, so opencode.ai is never hammered
-- **Provider-aware** — the chip shows only while the session's current model routes through the `opencode-go` provider. Visibility reads the live in-memory model selection (`session.models`, ~ms warm) on every poll, so switching to e.g. DeepSeek official via `/model` hides it within one 10 s cycle and switching back re-shows it (mirrors pi-ocgo-usage)
+- **Provider-aware** — the chip shows only while the session's current model routes through the `opencode-go` provider. Visibility reads the session's `modelSelection` projection (host-computed, held per key by the client), so switching to e.g. DeepSeek official via `/model` hides it on the same render and switching back re-shows it (mirrors pi-ocgo-usage)
 - **Click to expand** — detail panel with per-window reset countdowns, a `Set` credential editor, and `refresh upd HH:MM`
-- **Built-in credential editor** — no terminal needed: the `Set` panel edits workspace id and cookie in place (fields show `••••` + last 4 chars; click outside / Esc / Save confirms the write)
+- **Built-in credential editor** — no terminal needed: the `Set` panel edits the workspace id and the cookie in place (fields show `••••` + last 4 chars; click outside / Esc / Save confirms the write)
 - **Graceful degradation** — missing config shows `<err:noconfig>`, HTTP failures `<err:httpXXX>`; on error, clicking the chip opens the Set editor directly
 - **Cookie stays on the host** — the browser only ever talks to the same-origin `/api/ocgo-usage` JSON endpoint; the cookie never reaches the page
 
@@ -32,7 +32,7 @@ OpenCode Go: 5h 0% (1h 23m) · wk 65% (2d 20h) · mo 83% (6d 21h) · upd 20:15
 
 ## Requirements
 
-- DeepSeek Harness `0.1.0-rc.6` or newer (web profile)
+- DeepSeek Harness `0.2.2-rc.1` or newer (web profile; the manifest declares this with `engines.dsh`)
 - pnpm on `PATH` (for `dsh plugin`)
 
 ## Installation
@@ -58,8 +58,8 @@ dsh plugin --profile web add dsh-ocgo-usage
 ### From a tarball
 
 ```sh
-pnpm pack            # in this repo → dsh-ocgo-usage-0.1.0.tgz
-dsh plugin --profile web add ./dsh-ocgo-usage-0.1.0.tgz
+pnpm pack            # in this repo → dsh-ocgo-usage-0.2.0.tgz
+dsh plugin --profile web add ./dsh-ocgo-usage-0.2.0.tgz
 ```
 
 ### From a local checkout (development)
@@ -82,14 +82,14 @@ dsh --profile web --dump-config   # shows a "# == dsh-ocgo-usage" layer
 
 ### Option 1: the in-UI Set panel (easiest)
 
-Click the chip to expand → `Set` (bottom-left) → type the workspace id and cookie (existing values show as `••••` + last 4 chars; focus a field to type a replacement) → click outside / press Esc / hit Save — it takes effect immediately.
+Click the chip to expand → `Set` (bottom-left) → fill the workspace id and paste the whole cookie (existing values show as `••••` + last 4 chars; focus a field to type a replacement) → click outside / press Esc / hit Save — it takes effect immediately.
 
 ![Set editor](assets/set-cookie-wid.png)
 
 ### Option 2: environment variables (same names as pi-ocgo-usage)
 
 ```sh
-export OPENCODE_GO_COOKIE="auth=Fe26.2*...; oc_locale=en"
+export OPENCODE_GO_COOKIE="auth=Fe26.2*...; __Host-console_session=st_..."
 export OPENCODE_GO_WORKSPACE_ID="wrk_01XXXXXXXXXXXXXXXXXXXXXXXX"
 ```
 
@@ -99,7 +99,7 @@ Write `$DSH_HOME/ocgo-usage.json` (default `~/.dsh/ocgo-usage.json`):
 
 ```jsonc
 {
-  "cookie": "auth=Fe26.2*...; oc_locale=en",
+  "cookie": "auth=Fe26.2*...; __Host-console_session=st_...",
   "workspaceID": "wrk_01XXXXXXXXXXXXXXXXXXXXXXXX"
 }
 ```
@@ -116,7 +116,7 @@ Priority: env vars > config file > built-in defaults.
 |---|---|---|
 | `OPENCODE_GO_BASE_URL` | `https://opencode.ai` | API base URL |
 | `OPENCODE_GO_CACHE_TTL` | `300` | Host cache TTL in seconds, clamped to 60–3600 |
-| `OPENCODE_GO_TIMEOUT_MS` | `10000` | HTTP timeout |
+| `OPENCODE_GO_TIMEOUT_MS` | `20000` | HTTP timeout (headroom for slow links without a proxy) |
 
 Composition-level config (via `~/.dsh/profiles/web/cordis.patch.yml`):
 
@@ -136,8 +136,8 @@ Click the chip to expand the detail panel: each window shows its full name, perc
 
 ## How it works
 
-- **Host half** (`src/index.ts`, `src/service.ts`, `src/api.ts`, `src/routes.ts`) — fetches `GET /workspace/<wrk>/go` with the cookie, parses the SSR-rendered `data-slot="usage-item"` blocks into `{percent, resetInSec, status}` per window, caches the result, and serves it as same-origin JSON at `/api/ocgo-usage` (+ `/api/ocgo-usage/refresh`, `/api/ocgo-usage/config`).
-- **Browser half** (`src/client/`) — registers a chip into the `conversation.composer.dock` slot, polls the host endpoints every 10 s, and renders the three windows with severity colors; visibility comes from the live provider in `session.models`.
+- **Host half** (`src/index.ts`, `src/service.ts`, `src/api.ts`, `src/routes.ts`) — reads `GET /console/api/go/status` with the whole cookie plus `x-org-id: <wrk>`, maps `access.meters.{fiveHour,week,month}` (`usedMicroCents / limitMicroCents`, `resetsAt`) into `{percent, resetInSec, status}` per window, caches the result, and serves it as same-origin JSON at `/api/ocgo-usage` (+ `/api/ocgo-usage/refresh`, `/api/ocgo-usage/config`).
+- **Browser half** (`src/client/`) — registers a chip into the `conversation.input.right` slot, polls the host endpoints every 10 s, and renders the three windows with severity colors; visibility comes from the provider in the session's `modelSelection` projection.
 
 The browser never sees the cookie; all fetching and parsing happen on the host.
 

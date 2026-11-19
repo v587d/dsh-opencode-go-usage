@@ -33,9 +33,9 @@ export interface NormalizedUsage {
 
 /** Fully resolved plugin configuration (env + config file + defaults). */
 export interface OcgoConfig {
-  /** Full `Cookie:` header value (e.g. `auth=Fe26.2*...; oc_locale=zh`). */
+  /** Full `Cookie:` header value (e.g. `auth=Fe26.2*...; __Host-console_session=st_...`). */
   readonly cookie?: string
-  /** OpenCode workspace id (e.g. `wrk_01...`). */
+  /** Workspace id sent as the `x-org-id` header (e.g. `wrk_01...`). */
   readonly workspaceID?: string
   /** API base URL. */
   readonly baseUrl: string

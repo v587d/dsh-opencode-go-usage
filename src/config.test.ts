@@ -43,26 +43,13 @@ function restoreEnv(saved: Record<string, string | undefined>): void {
 }
 
 describe('normalizeCookie', () => {
-  it('passes through a full header and preserves its locale', () => {
+  it('keeps the auth pair and the other cookies a paste carried', () => {
     expect(normalizeCookie('auth=Fe26.2*abc; oc_locale=zh')).toBe('auth=Fe26.2*abc; oc_locale=zh')
-    expect(normalizeCookie('auth=Fe26.2*abc')).toBe('auth=Fe26.2*abc; oc_locale=en')
+    expect(normalizeCookie('auth=Fe26.2*abc')).toBe('auth=Fe26.2*abc')
   })
 
   it('prefixes auth= onto a bare auth value', () => {
-    expect(normalizeCookie('Fe26.2*abc')).toBe('auth=Fe26.2*abc; oc_locale=en')
-  })
-
-  it('preserves a pasted locale (zh stays zh, ja stays ja)', () => {
-    expect(normalizeCookie('Fe26.2*abc; oc_locale=zh')).toBe('auth=Fe26.2*abc; oc_locale=zh')
-    expect(normalizeCookie('Fe26.2*abc; oc_locale=ja')).toBe('auth=Fe26.2*abc; oc_locale=ja')
-  })
-
-  it('falls back to en when the locale is absent or malformed', () => {
-    expect(normalizeCookie('auth=Fe26.2*abc')).toBe('auth=Fe26.2*abc; oc_locale=en')
-    expect(normalizeCookie('auth=Fe26.2*abc; oc_locale=')).toBe('auth=Fe26.2*abc; oc_locale=en')
-    expect(normalizeCookie('auth=Fe26.2*abc; oc_locale=verylonglocale')).toBe(
-      'auth=Fe26.2*abc; oc_locale=en',
-    )
+    expect(normalizeCookie('Fe26.2*abc')).toBe('auth=Fe26.2*abc')
   })
 
   it('is order-independent and never corrupts locale-first cookies (regression)', () => {
@@ -70,20 +57,18 @@ describe('normalizeCookie', () => {
     // "auth=oc_locale=zh; ...". This must never happen.
     expect(normalizeCookie('oc_locale=zh; auth=Fe26.2*abc')).toBe('auth=Fe26.2*abc; oc_locale=zh')
     expect(normalizeCookie('oc_locale=en; desktop_promo_dismissed=1; auth=Fe26.2*abc')).toBe(
-      'auth=Fe26.2*abc; oc_locale=en',
+      'auth=Fe26.2*abc; oc_locale=en; desktop_promo_dismissed=1',
     )
   })
 
   it('accepts comma-separated cookies (Set-Cookie style)', () => {
     expect(normalizeCookie('oc_locale=zh, desktop_promo_dismissed=1, auth=Fe26.2*abc')).toBe(
-      'auth=Fe26.2*abc; oc_locale=zh',
+      'auth=Fe26.2*abc; oc_locale=zh; desktop_promo_dismissed=1',
     )
   })
 
   it('accepts a quoted auth value', () => {
-    expect(normalizeCookie('auth="Fe26.2*quoted"; oc_locale=en')).toBe(
-      'auth=Fe26.2*quoted; oc_locale=en',
-    )
+    expect(normalizeCookie('auth="Fe26.2*quoted"; oc_locale=en')).toBe('auth=Fe26.2*quoted; oc_locale=en')
   })
 
   it('rejects input with no real auth token (no fake auth=)', () => {
@@ -119,7 +104,6 @@ describe('loadConfig', () => {
   it('returns defaults when nothing is configured', () => {
     const cfg = loadConfig()
     expect(cfg.cookie).toBeUndefined()
-    expect(cfg.workspaceID).toBeUndefined()
     expect(cfg.baseUrl).toBe(DEFAULT_BASE_URL)
     expect(cfg.cacheTTL).toBe(DEFAULT_CACHE_TTL)
     expect(cfg.timeoutMs).toBe(DEFAULT_TIMEOUT_MS)
@@ -132,23 +116,29 @@ describe('loadConfig', () => {
     process.env[ENV_CACHE_TTL] = '120'
     process.env[ENV_TIMEOUT_MS] = '5000'
     const cfg = loadConfig()
-    expect(cfg.cookie).toBe('auth=Fe26.2*env; oc_locale=en')
+    expect(cfg.cookie).toBe('auth=Fe26.2*env')
     expect(cfg.workspaceID).toBe('wrk_env')
     expect(cfg.baseUrl).toBe('https://example.com')
     expect(cfg.cacheTTL).toBe(120)
     expect(cfg.timeoutMs).toBe(5000)
   })
 
+  it('ignores a non-positive timeout and keeps the default', () => {
+    process.env[ENV_TIMEOUT_MS] = '0'
+    expect(loadConfig().timeoutMs).toBe(DEFAULT_TIMEOUT_MS)
+    process.env[ENV_TIMEOUT_MS] = '-1'
+    expect(loadConfig().timeoutMs).toBe(DEFAULT_TIMEOUT_MS)
+  })
+
   it('env wins over the config file', () => {
     writeFileSync(join(tmp, 'ocgo-usage.json'), JSON.stringify({
-      cookie: 'auth=Fe26.2*file; oc_locale=zh',
-      workspaceID: 'wrk_file',
+      cookie: 'auth=Fe26.2*file',
       cacheTTL: 9999,
     }))
-    process.env[ENV_COOKIE] = 'auth=Fe26.2*env; oc_locale=zh'
+    process.env[ENV_COOKIE] = 'auth=Fe26.2*env'
     const cfg = loadConfig()
-    expect(cfg.cookie).toBe('auth=Fe26.2*env; oc_locale=zh')
-    expect(cfg.workspaceID).toBe('wrk_file')
+    expect(cfg.cookie).toBe('auth=Fe26.2*env')
+    expect(cfg.cacheTTL).toBe(3600)
   })
 
   it('falls back to the config file and clamps cacheTTL', () => {
@@ -158,7 +148,7 @@ describe('loadConfig', () => {
       cacheTTL: 9999,
     }))
     const cfg = loadConfig()
-    expect(cfg.cookie).toBe('auth=Fe26.2*file; oc_locale=en')
+    expect(cfg.cookie).toBe('auth=Fe26.2*file')
     expect(cfg.workspaceID).toBe('wrk_file')
     expect(cfg.cacheTTL).toBe(3600)
     expect(cfg.timeoutMs).toBe(DEFAULT_TIMEOUT_MS)
@@ -194,57 +184,42 @@ describe('masked config view + write', () => {
   })
 
   it('exposes only masked values in the view', () => {
-    const cookie = 'auth=Fe26.2*secret-cookie-9abc; oc_locale=zh'
-    const ws = 'wrk_01XXXXXXXXXXXXXXXXXXXX8q2w'
-    process.env[ENV_COOKIE] = cookie
-    process.env[ENV_WORKSPACE_ID] = ws
+    process.env[ENV_COOKIE] = 'auth=Fe26.2*secret-cookie-9abc; oc_locale=zh'
     const view = maskedConfigView()
-    // The env cookie is normalized on load: locale is preserved as zh.
-    const normalized = 'auth=Fe26.2*secret-cookie-9abc; oc_locale=zh'
-    expect(view.cookie).toEqual({ set: true, tail: normalized.slice(-4) })
-    expect(view.workspaceID).toEqual({ set: true, tail: ws.slice(-4) })
+    expect(view.cookie).toEqual({ set: true, tail: 'e=zh' })
     expect(JSON.stringify(view)).not.toContain('secret-cookie')
   })
 
-  it('writes new values to the config file and normalizes the cookie', () => {
-    const view = writeConfigFile({ cookie: 'Fe26.2*new', workspaceID: 'wrk_new' })
-    // The written cookie is normalized to "auth=Fe26.2*new; oc_locale=en";
-    // its tail is the whole header's last 4 chars.
-    expect(view.cookie).toEqual({ set: true, tail: 'auth=Fe26.2*new; oc_locale=en'.slice(-4) })
-    expect(view.workspaceID).toEqual({ set: true, tail: 'wrk_new'.slice(-4) })
+  it('writes the cookie to the config file and normalizes it', () => {
+    const view = writeConfigFile({ cookie: 'Fe26.2*new' })
+    expect(view.cookie).toEqual({ set: true, tail: '*new' })
     // loadConfig now reads the written file (normalized cookie with auth=).
-    const cfg = loadConfig()
-    expect(cfg.workspaceID).toBe('wrk_new')
-    expect(cfg.cookie).toBe('auth=Fe26.2*new; oc_locale=en')
+    expect(loadConfig().cookie).toBe('auth=Fe26.2*new')
   })
 
   it('preserves other fields and clears a field with null', () => {
     writeFileSync(join(tmp, 'ocgo-usage.json'), JSON.stringify({
-      cookie: 'auth=Fe26.2*old; oc_locale=zh',
-      workspaceID: 'wrk_old',
+      cookie: 'auth=Fe26.2*old',
       baseUrl: 'https://example.com',
       cacheTTL: 120,
     }))
-    const view = writeConfigFile({ cookie: null, workspaceID: 'wrk_new2' })
+    const view = writeConfigFile({ cookie: null })
     expect(view.cookie).toEqual({ set: false, tail: '' })
-    expect(view.workspaceID).toEqual({ set: true, tail: 'wrk_new2'.slice(-4) })
     const raw = JSON.parse(readFileSync(join(tmp, 'ocgo-usage.json'), 'utf8'))
     expect(raw.baseUrl).toBe('https://example.com')
     expect(raw.cacheTTL).toBe(120)
     expect(raw.cookie).toBeUndefined()
   })
 
-  it('keeps fields absent from the write untouched (no accidental clear)', () => {
+  it('leaves the file untouched when the write carries no field', () => {
     writeFileSync(join(tmp, 'ocgo-usage.json'), JSON.stringify({
-      cookie: 'auth=Fe26.2*keepme; oc_locale=zh',
-      workspaceID: 'wrk_keep',
+      cookie: 'auth=Fe26.2*keepme',
+      baseUrl: 'https://example.com',
     }))
-    // Only workspaceID is present in the partial; cookie must survive.
-    const view = writeConfigFile({ workspaceID: 'wrk_new3' })
-    expect(view.workspaceID).toEqual({ set: true, tail: 'wrk_new3'.slice(-4) })
-    expect(view.cookie).toEqual({ set: true, tail: 'oc_locale=zh'.slice(-4) })
+    const view = writeConfigFile({})
+    expect(view.cookie).toEqual({ set: true, tail: 'epme' })
     const raw = JSON.parse(readFileSync(join(tmp, 'ocgo-usage.json'), 'utf8'))
-    expect(raw.cookie).toBe('auth=Fe26.2*keepme; oc_locale=zh')
-    expect(raw.workspaceID).toBe('wrk_new3')
+    expect(raw.cookie).toBe('auth=Fe26.2*keepme')
+    expect(raw.baseUrl).toBe('https://example.com')
   })
 })

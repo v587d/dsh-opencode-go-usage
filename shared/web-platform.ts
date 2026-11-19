@@ -1,18 +1,15 @@
 /**
- * Shared browser platform modules. Seeding, bundling externals, and Vite
- * aliases consume this list so their module identities cannot drift.
- * Copied verbatim from dsh-balance-meter (which copied it from the DSH
- * checkout's `packages/client/web-platform.ts`) for the rc.6 shell.
+ * Shared browser platform modules: the loader module-table entries this plugin's
+ * client bundle keeps external (seeding and bundling consume one list so their
+ * module identities cannot drift). Only the entries this bundle actually
+ * requires are listed — anything else must inline or be reached through a
+ * cordis service.
  * @module dsh-ocgo-usage/web-platform
  */
 
 /** The module specifiers the shell shares into the frozen module table. */
 export const PLATFORM_MODULES = [
-  'react', 'react/jsx-runtime', 'react-dom', 'react-dom/client', '@deepseek-ai/cordis',
-  '@deepseek-ai/dsh-client-ui-slots',
-  '@deepseek-ai/dsh-client-web-react',
-  '@deepseek-ai/dsh-client-ui-primitives',
-  '@deepseek-ai/dsh-client-schema-form',
+  'react', 'react/jsx-runtime',
 ] as const
 
 /** One platform module specifier (a seed-table key). */

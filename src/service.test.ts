@@ -14,20 +14,31 @@ import { OcgoUsageService } from './service.ts'
 const SAVED_COOKIE = process.env[ENV_COOKIE]
 const SAVED_WORKSPACE = process.env[ENV_WORKSPACE_ID]
 
-/** A realistic SSR page for the mocked fetch. */
-const OK_PAGE = `
-<div data-slot="usage-item">
-  <span data-slot="usage-label">Rolling Usage</span>
-  <span data-slot="usage-value"><!--$-->23<!--/-->%</span>
-  <span data-slot="reset-time"><!--$-->Resets in<!--/-->2 hours<!--/--></span>
-</div>`
+/** The console status body the service reads, with the 5-hour window 2h from reset. */
+const OK_STATUS = JSON.stringify({
+  access: {
+    meters: {
+      fiveHour: {
+        startsAt: new Date(Date.now() - 3 * 3600_000).toISOString(),
+        resetsAt: new Date(Date.now() + 2 * 3600_000).toISOString(),
+        limitMicroCents: 10_000_000,
+        usedMicroCents: 2_300_000,
+      },
+    },
+  },
+})
+
+/** Mocked console status response. */
+function okResponse(): Response {
+  return new Response(OK_STATUS, { status: 200, headers: { 'content-type': 'application/json' } })
+}
 
 describe('OcgoUsageService', () => {
   let ctx: Context
   let tmp: string
 
   beforeEach(() => {
-    process.env[ENV_COOKIE] = 'auth=Fe26.2*test; oc_locale=zh'
+    process.env[ENV_COOKIE] = 'auth=Fe26.2*test'
     process.env[ENV_WORKSPACE_ID] = 'wrk_test'
     tmp = mkdtempSync(join(tmpdir(), 'dsh-ocgo-usage-svc-'))
     process.env.DSH_HOME = tmp
@@ -49,9 +60,7 @@ describe('OcgoUsageService', () => {
   })
 
   it('returns the parsed windows on success', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(OK_PAGE, { status: 200, headers: { 'content-type': 'text/html' } }),
-    )
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(okResponse())
     const service = new OcgoUsageService(ctx)
     const view = await service.view()
     expect(view.error).toBeUndefined()
@@ -65,9 +74,7 @@ describe('OcgoUsageService', () => {
   })
 
   it('deduplicates concurrent view() calls into one fetch', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(OK_PAGE, { status: 200, headers: { 'content-type': 'text/html' } }),
-    )
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(okResponse())
     const service = new OcgoUsageService(ctx)
     const [a, b] = await Promise.all([service.view(), service.view()])
     expect(a.rolling?.percent).toBe(23)
@@ -76,9 +83,7 @@ describe('OcgoUsageService', () => {
   })
 
   it('serves the cached view within the TTL without refetching', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(OK_PAGE, { status: 200, headers: { 'content-type': 'text/html' } }),
-    )
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(okResponse())
     const service = new OcgoUsageService(ctx)
     await service.view()
     await service.view()
@@ -87,9 +92,7 @@ describe('OcgoUsageService', () => {
 
   it('returns a noconfig error when the cookie is missing', async () => {
     delete process.env[ENV_COOKIE]
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(OK_PAGE, { status: 200, headers: { 'content-type': 'text/html' } }),
-    )
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(okResponse())
     const service = new OcgoUsageService(ctx)
     const view = await service.view()
     expect(view.error).toBe('noconfig')
@@ -110,9 +113,7 @@ describe('OcgoUsageService', () => {
   })
 
   it('refresh() bypasses the cache window', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(OK_PAGE, { status: 200, headers: { 'content-type': 'text/html' } }),
-    )
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(okResponse())
     const service = new OcgoUsageService(ctx)
     await service.view()
     await service.refresh()
@@ -120,9 +121,7 @@ describe('OcgoUsageService', () => {
   })
 
   it('answers disabled when the plugin is switched off', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(OK_PAGE, { status: 200, headers: { 'content-type': 'text/html' } }),
-    )
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(okResponse())
     const service = new OcgoUsageService(ctx, { enabled: false })
     const view = await service.view()
     expect(view.error).toBe('disabled')

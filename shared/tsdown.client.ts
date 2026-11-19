@@ -12,6 +12,7 @@
  * stylesheet as a watch dependency. The platform module list mirrors the
  * shell's seed table in `./web-platform.ts`.
  */
+import { createHash } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { basename, dirname, relative, resolve as resolvePath, sep } from 'node:path'
@@ -45,20 +46,8 @@ const GENERATED_REMOTE = /^@deepseek-ai\/dsh-[a-z0-9]+(?:-[a-z0-9]+)*\/remote$/
  */
 const SKIP_WORKSPACE_BUILD: UserConfig = { entry: '' }
 
-/**
- * Documented TEMPORARY exemption, not a platform module (hence not in
- * web-platform.ts): the snapshot-store engine (createSnapshotStore/defineStore/
- * shallowEqual) lives in runtime pending its promotion-time rehoming, and
- * five importers (locale, ui-layout, ui-conversation ×3) ride this single
- * exemption. At runtime the lazy CJS table answers the require natively:
- * runtime is an immediately-tier row, its factory is registered before any
- * dependent bundle materializes. TODO(webload/store-rehome): remove with the
- * store-engine relocation follow-up.
- */
-const RUNTIME_STORE_EXEMPTION = '@deepseek-ai/dsh-client-runtime/client'
-
-/** Externals resolved from the loader module table: the platform seed entries plus the documented runtime exemption. */
-export const CLIENT_EXTERNALS: readonly string[] = [...PLATFORM_MODULES, RUNTIME_STORE_EXEMPTION]
+/** Externals resolved from the loader module table: the platform seed entries this bundle requires. */
+export const CLIENT_EXTERNALS: readonly string[] = [...PLATFORM_MODULES]
 
 const REPOSITORY_ROOT = fileURLToPath(new URL('..', import.meta.url))
 
@@ -145,6 +134,9 @@ function clientLibraryConfig(
     // relative imports rolldown cannot follow, so the import must stay
     // external (the same stance as the peer APIs above).
     external: ['@deepseek-ai/cordis', ...extraExternal],
+    // A content-hashed shared chunk would orphan its previous build in lib/
+    // (clean stays off so the client bundle survives the node pass).
+    outputOptions: { chunkFileNames: 'chunk.js' },
     ...overrides,
   }
 }
@@ -230,10 +222,14 @@ function clientConfig(id: string, entry: string): UserConfig {
         for (const [local, exp] of Object.entries(cssExports ?? {}).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)) {
           classMap[local] = exp.name
         }
-        // One <style data-plugin> per module file; idempotent under re-evaluation.
+        // One <style data-plugin> per module build; idempotent under re-evaluation
+        // of the SAME bundle, while a newer bundle's stylesheet still applies
+        // after a Host restart that reloaded the module without a page reload.
+        const cssText = code.toString()
+        const cssRevision = createHash('sha1').update(cssText).digest('hex').slice(0, 8)
         return [
-          `const css = ${JSON.stringify(code.toString())};`,
-          `const tagId = ${JSON.stringify(`${id}/${basename(fileId)}`)};`,
+          `const css = ${JSON.stringify(cssText)};`,
+          `const tagId = ${JSON.stringify(`${id}/${basename(fileId)}-${cssRevision}`)};`,
           'if (typeof document !== \'undefined\' && document.querySelector(\'style[data-plugin-css=\' + JSON.stringify(tagId) + \']\') === null) {',
           '  const tag = document.createElement(\'style\');',
           `  tag.dataset.plugin = ${JSON.stringify(id)};`,

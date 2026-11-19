@@ -1,12 +1,10 @@
 /**
  * HTTP fetch + response adapters for dsh-ocgo-usage
  *
- * Cookie path (current): GET /workspace/<wrk>/go HTML SSR scrape.
- * The opencode.ai dashboard renders usage values inline in
- * `data-slot="usage-item"` blocks; this is the only cookie-authenticated
- * way to read usage today. (The proposed official API from
- * anomalyco/opencode#16513 is not merged yet; when it ships, an apikey
- * path can be added behind the same `NormalizedUsage` shape.)
+ * Cookie path: GET /console/api/go/status on the opencode.ai console. The
+ * console answers JSON — `access.meters.{fiveHour,week,month}` each carry
+ * `limitMicroCents`, `usedMicroCents` and `resetsAt` — so the read is a
+ * plain authenticated GET, not a page scrape.
  *
  * Adapted from pi-ocgo-usage/src/api.ts.
  * @module dsh-ocgo-usage/api
@@ -18,30 +16,47 @@ export declare class UsageError extends Error {
     readonly name = "UsageError";
     constructor(message: string, code: string);
 }
-/** Fetch usage through the cookie path. Throws UsageError on any failure. */
+/** Console API path of the Go subscription status read. */
+export declare const GO_STATUS_PATH = "/console/api/go/status";
+/**
+ * One Go usage meter as the console reports it. Amounts are micro-cents, so a
+ * window's percentage is `usedMicroCents / limitMicroCents`; `resetsAt` is an
+ * ISO timestamp.
+ */
+export interface GoMeter {
+    readonly startsAt?: string;
+    readonly resetsAt: string;
+    readonly limitMicroCents: number;
+    readonly usedMicroCents: number;
+}
+/** The `access.meters` block: the three windows the console renders. */
+export interface GoMeters {
+    readonly fiveHour?: GoMeter;
+    readonly week?: GoMeter;
+    readonly month?: GoMeter;
+}
+/** Go subscription status body; `null` when the account has no subscription. */
+export interface GoStatus {
+    readonly access?: {
+        readonly endsAt?: string | null;
+        readonly meters?: GoMeters;
+    } | null;
+}
+/**
+ * Fetch usage through the cookie path. The console scopes the read to the
+ * workspace named by `x-org-id`; without that header the endpoint answers
+ * 400, before it ever gets to the account's meters.
+ */
 export declare function fetchViaCookie(cfg: OcgoConfig): Promise<Omit<NormalizedUsage, 'updatedAt'>>;
 /**
- * Parse the opencode console SSR HTML page and extract the three usage
- * windows. Reset times are emitted as English phrases inside
- * `data-slot="reset-time"` (e.g. "Resets in 2 hours 29 minutes"). We parse
- * them into a coarse `resetInSec` estimate; precise second-level resets are
- * not needed for display.
+ * Map a console status read onto the three usage windows. The console calls
+ * the windows `fiveHour`, `week` and `month`; the chip's names are rolling,
+ * weekly and monthly.
+ * @param status - the decoded status body (`null` without a subscription).
+ * @returns the windows the body carries.
+ * @throws {UsageError} when the account has no Go subscription.
  */
-export declare function fromSSRHTML(html: string): Omit<NormalizedUsage, 'updatedAt'>;
-/**
- * Parse a human duration phrase into seconds. Examples (English plus the
- * Chinese renderings used by the zh locale):
- *   "2 hours 29 minutes" → 8940      "2 小时 29 分钟" → 8940
- *   "45 minutes"          → 2700     "45 分钟"         → 2700
- *   "5 days"              → 432000   "5 天"            → 432000
- *   "30 seconds"          → 30       "30 秒"           → 30
- *   "1 week"              → 604800   "1 周"            → 604800
- *   "1 month"             → 2592000  "1 个月"          → 2592000
- *   "1 year"              → 31536000 "1 年"            → 31536000
- *
- * Returns 0 on unrecognized input.
- */
-export declare function parseDurationToSec(phrase: string): number;
+export declare function fromConsoleStatus(status: GoStatus | null): Omit<NormalizedUsage, 'updatedAt'>;
 /**
  * Fetch usage with the current config (cookie path only today) and stamp
  * the fetch timestamp so the UI can show data freshness.
