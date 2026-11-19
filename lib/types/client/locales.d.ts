@@ -8,7 +8,6 @@ export declare const NS = "ocgo";
 export declare const zh: {
     readonly 'ocgo.unavailable': "用量不可用";
     readonly 'ocgo.error': "查询失败：{code}";
-    readonly 'ocgo.noconfig': "未配置：请设置 OPENCODE_GO_COOKIE 与 OPENCODE_GO_WORKSPACE_ID（或 $DSH_HOME/ocgo-usage.json）";
     readonly 'ocgo.refresh': "刷新";
     readonly 'ocgo.fetchedAt': "upd {time}";
     readonly 'ocgo.rolling': "5h 滚动";
@@ -29,7 +28,6 @@ export declare const zh: {
 export declare const en: {
     readonly 'ocgo.unavailable': "usage unavailable";
     readonly 'ocgo.error': "Query failed: {code}";
-    readonly 'ocgo.noconfig': "Not configured: set OPENCODE_GO_COOKIE and OPENCODE_GO_WORKSPACE_ID (or $DSH_HOME/ocgo-usage.json)";
     readonly 'ocgo.refresh': "Refresh";
     readonly 'ocgo.fetchedAt': "upd {time}";
     readonly 'ocgo.rolling': "5h Rolling";

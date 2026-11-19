@@ -53,23 +53,33 @@
   transform: rotate(180deg);
 }
 
-.segWarn50 {
-  color: var(--dsw-static-amber-400, #f7ad31);
+/* Severity dot: a 6px status light in front of each window label. */
+.dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  align-self: center;
+  border-radius: 50%;
 }
 
-.segWarn60 {
+.dotOk {
+  background: var(--dsw-alias-state-success-primary, #3fb950);
+}
+
+.dotWarn {
+  background: var(--dsw-static-amber-500, #f59e0b);
+}
+
+.dotErr {
+  background: var(--dsw-alias-state-error-primary, #dc2626);
+}
+
+/* The number stays neutral until it is worth alarming about. */
+.numWarn {
   color: var(--dsw-static-amber-500, #f59e0b);
 }
 
-.segWarn70 {
-  color: var(--dsw-static-amber-600, #dd8629);
-}
-
-.segErr80 {
-  color: var(--dsw-alias-state-error-primary, #dc2626);
-}
-
-.segCrit90 {
+.numErr {
   color: var(--dsw-alias-state-error-primary, #dc2626);
   font-weight: 600;
 }

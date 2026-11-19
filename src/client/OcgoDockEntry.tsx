@@ -15,9 +15,10 @@ import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots
 import { isOpenCodeGo } from '../provider.ts'
 import type { MaskedConfigView, OcgoUsageView, UsageWindow, UsageWindowKind } from '../types.ts'
 import { NS, type OcgoKey } from './locales.ts'
+import { severityTier } from './severity.ts'
 import css from './ocgo.module.css'
 
-/** Poll interval for the host snapshot and the live model provider. */
+/** Poll interval for the host usage snapshot. */
 const POLL_MS = 10_000
 
 /** The masked-prefix shown before the last-4 tail of a secret. */
@@ -47,11 +48,10 @@ const ocgoApi = {
   ),
 }
 
-/** Composed props of the dock entry (runtime + locale + injected session/provider face). */
+/** Composed props of the dock entry: the session standard kit plus the locale seat. */
 export type OcgoDockEntryProps =
   PropsRuntime<'conversation.input.right'>
   & PropsLocale<typeof NS>
-  & { dockSessionId?: string | undefined; provider?: () => Promise<string | undefined> }
 
 /** Short window label: 5h / wk / mo. */
 const WINDOW_LABELS: Record<UsageWindowKind, string> = {
@@ -91,13 +91,18 @@ function formatClock(epochMs: number): string {
   return `${hh}:${mm}`
 }
 
-/** The severity class of one window (muted → escalating warn → err). */
-function severityClass(window: UsageWindow): string | undefined {
-  if (window.status === 'rate-limited' || window.percent >= 90) return css.segCrit90
-  if (window.percent >= 80) return css.segErr80
-  if (window.percent >= 70) return css.segWarn70
-  if (window.percent >= 60) return css.segWarn60
-  if (window.percent >= 50) return css.segWarn50
+/** The dot classes of one window: the sized base plus its tier colour. */
+function dotClass(window: UsageWindow): string {
+  const tier = severityTier(window)
+  const colour = tier === 'err' ? css.dotErr : tier === 'warn' ? css.dotWarn : css.dotOk
+  return `${css.dot} ${colour}`
+}
+
+/** The number's colour: neutral while fine, then amber, then bold red. */
+function numberClass(window: UsageWindow): string | undefined {
+  const tier = severityTier(window)
+  if (tier === 'err') return css.numErr
+  if (tier === 'warn') return css.numWarn
   return undefined
 }
 
@@ -143,16 +148,15 @@ function OcgoLogo(): React.ReactElement {
   )
 }
 
-/** Render one window segment: compact `· 5h 23%`, full `· 5h 23% (3h 25m)`. */
-function WindowSegment(props: { window: UsageWindow; sep: string; compact?: boolean }): React.ReactElement {
-  const { window, sep, compact = false } = props
-  const cls = severityClass(window)
+/** Render one compact window segment: `· ● 5h 23%`. */
+function WindowSegment(props: { window: UsageWindow; sep: string }): React.ReactElement {
+  const { window, sep } = props
   return (
     <span className={css.seg}>
       <span className={css.segSep}>{sep}</span>
-      <span className={cls ?? undefined}>
-        {WINDOW_LABELS[window.kind]} {window.percent}%
-        {!compact ? ` (${formatDuration(window.resetInSec)})` : ''}
+      <span className={dotClass(window)} aria-hidden="true" />
+      <span>
+        {WINDOW_LABELS[window.kind]} <span className={numberClass(window)}>{window.percent}%</span>
       </span>
     </span>
   )
@@ -172,7 +176,6 @@ function maskedText(secret: { set: boolean; tail: string } | undefined): string 
 export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | null {
   const [view, setView] = useState<OcgoUsageView | null>(null)
   const [open, setOpen] = useState(false)
-  const [visible, setVisible] = useState(true)
   // Panel mode: 'view' = windows + footer; 'set' = workspace/cookie editor.
   const [mode, setMode] = useState<'view' | 'set'>('view')
   const [config, setConfig] = useState<MaskedConfigView | null>(null)
@@ -186,47 +189,33 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
   const configRef = useRef<MaskedConfigView | null>(null)
   configRef.current = config
 
-  // One periodic tick:
-  //   1. resolve the session's CURRENT provider from the live in-memory
-  //      selection (session.models, warm ~ms) and toggle `visible`;
-  //   2. only while visible, fetch the usage snapshot.
-  const pollNow = useCallback(() => {
-    let live = true
-    const provider = props.provider
-    const resolveProvider = provider !== undefined
-      ? Promise.resolve(provider()).then((p) => p ?? undefined, () => undefined)
-      : Promise.resolve(undefined)
-    resolveProvider.then((p) => {
-      if (!live) return
-      const shown = isOpenCodeGo(p)
-      setVisible(shown)
-      if (!shown) setOpen(false)
-      if (shown) {
-        ocgoApi.view().then((snapshot) => {
-          if (live) setView(snapshot)
-        }, () => {
-          if (live) setView(null)
-        })
-      }
-    }, () => {
-      if (live) setVisible(false)
-    })
-    return () => { live = false }
-  }, [props.provider])
+  // Provider gate: `next` is the route the upcoming model step uses, while
+  // `lastUsed` covers a Session whose selection is known only from its last
+  // request. Both absent means no selection yet, so the chip stays hidden.
+  const selection = props.useProjection('modelSelection')
+  const visible = isOpenCodeGo(selection?.next?.provider ?? selection?.lastUsed?.provider)
 
+  const reload = useCallback((): void => {
+    ocgoApi.view().then((snapshot) => setView(snapshot), () => setView(null))
+  }, [])
+
+  // Poll the host snapshot only while this chip is on screen.
   useEffect(() => {
-    const cleanup = pollNow()
-    const timer = window.setInterval(pollNow, POLL_MS)
+    if (!visible) {
+      setOpen(false)
+      return
+    }
+    reload()
+    const timer = window.setInterval(reload, POLL_MS)
     const onVisibility = (): void => {
-      if (document.visibilityState === 'visible') pollNow()
+      if (document.visibilityState === 'visible') reload()
     }
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
-      cleanup()
       window.clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [pollNow])
+  }, [visible, reload])
 
   /** Load the masked config into the editor drafts. */
   const loadConfig = useCallback(() => {
@@ -235,7 +224,7 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
       setWsDraft(maskedText(snapshot.workspaceID))
       setCookieDraft(maskedText(snapshot.cookie))
     }, () => {
-      // Editor still opens; drafts stay empty.
+      // Editor still opens; the drafts stay empty.
       setConfig(null)
       setWsDraft('')
       setCookieDraft('')
@@ -246,27 +235,27 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
   const saveConfig = useCallback((): void => {
     const current = configRef.current
     const partial: { cookie?: string; workspaceID?: string } = {}
+    const ws = draftsRef.current.ws.trim()
+    const cookie = draftsRef.current.cookie.trim()
     if (current !== null) {
-      const ws = draftsRef.current.ws.trim()
       if (ws.length > 0 && ws !== maskedText(current.workspaceID)) partial.workspaceID = ws
-      const cookie = draftsRef.current.cookie.trim()
       if (cookie.length > 0 && cookie !== maskedText(current.cookie)) partial.cookie = cookie
     } else {
       // No baseline loaded (fetch failed): send whatever was typed.
-      if (draftsRef.current.ws.trim().length > 0) partial.workspaceID = draftsRef.current.ws.trim()
-      if (draftsRef.current.cookie.trim().length > 0) partial.cookie = draftsRef.current.cookie.trim()
+      if (ws.length > 0) partial.workspaceID = ws
+      if (cookie.length > 0) partial.cookie = cookie
     }
     if (Object.keys(partial).length === 0) return
     ocgoApi.writeConfig(partial).then((snapshot) => {
       setConfig(snapshot)
       setWsDraft(maskedText(snapshot.workspaceID))
       setCookieDraft(maskedText(snapshot.cookie))
-      // New credentials are live now (host invalidated its cache): poll now.
-      pollNow()
+      // New credentials are live now (host invalidated its cache): refetch.
+      reload()
     }, () => {
       // Ignore; the next poll resyncs and the editor keeps the drafts.
     })
-  }, [pollNow])
+  }, [reload])
 
   /** Close the panel; in set mode a blur/close acts as confirm (save). */
   const closePanel = useCallback((): void => {
@@ -410,7 +399,7 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
       >
         <OcgoLogo />
         {windows.map((w) => (
-          <WindowSegment key={w.kind} window={w} sep={sep} compact />
+          <WindowSegment key={w.kind} window={w} sep={sep} />
         ))}
         <span className={open ? `${css.chevron} ${css.chevronOpen}` : css.chevron} aria-hidden="true">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -458,10 +447,11 @@ export function OcgoDockEntry(props: OcgoDockEntryProps): React.ReactElement | n
               {windows.map((w) => (
                 <span key={w.kind} className={css.window}>
                   <span className={css.windowLabel}>
+                    <span className={dotClass(w)} aria-hidden="true" />
                     {w.status === 'rate-limited' ? t('ocgo.rateLimited') : t(WINDOW_TITLE_KEYS[w.kind])}
                   </span>
                   <span className={css.windowValue}>
-                    <span className={severityClass(w) ?? undefined}>{w.percent}%</span>
+                    <span className={numberClass(w)}>{w.percent}%</span>
                     <span className={css.windowReset}>
                       {t('ocgo.resetsIn', { duration: formatDuration(w.resetInSec) })}
                     </span>

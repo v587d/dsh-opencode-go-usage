@@ -1,166 +1,112 @@
 /**
- * Unit tests for the SSR usage page parser.
+ * Unit tests for the console status read and its mapping onto the chip windows.
  * @module dsh-ocgo-usage/api.test
  */
 
-import { describe, expect, it } from 'vitest'
-import { fromSSRHTML, parseDurationToSec } from './api.ts'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { fetchViaCookie, fromConsoleStatus, UsageError } from './api.ts'
+import type { OcgoConfig } from './types.ts'
 
-/** A full opencode.ai SSR usage page with all three windows. */
-const FULL_PAGE = `
-<!doctype html>
-<html><head><title>OpenCode</title></head><body>
-<div data-slot="usage-header">OpenCode Go</div>
-<div data-slot="usage-item">
-  <div data-slot="usage-header"><span data-slot="usage-label">Rolling Usage</span></div>
-  <span data-slot="usage-value"><!--$-->23<!--/-->%</span>
-  <span data-slot="reset-time"><!--$-->Resets in<!--/-->2 hours 29 minutes<!--/--></span>
-</div>
-<div data-slot="usage-item">
-  <span data-slot="usage-label">Weekly Usage</span>
-  <span data-slot="usage-value"><!--$-->80<!--/-->%</span>
-  <span data-slot="reset-time"><!--$-->Resets in<!--/-->4 days 6 hours<!--/--></span>
-</div>
-<div data-slot="usage-item">
-  <span data-slot="usage-label">Monthly Usage</span>
-  <span data-slot="usage-value"><!--$-->100<!--/-->%</span>
-  <span data-slot="reset-time"><!--$-->Resets in<!--/-->12 days 4 hours<!--/--></span>
-</div>
-</body></html>
-`
+describe('fromConsoleStatus', () => {
+  /** Build one console meter whose window resets in `hours` from now. */
+  function meter(hours: number, limit: number, used: number) {
+    return {
+      resetsAt: new Date(Date.now() + hours * 3600_000).toISOString(),
+      limitMicroCents: limit,
+      usedMicroCents: used,
+    }
+  }
 
-describe('fromSSRHTML', () => {
-  it('parses all three windows with percent and reset seconds', () => {
-    const parsed = fromSSRHTML(FULL_PAGE)
-    expect(parsed.rolling).toEqual({
-      kind: 'rolling',
-      percent: 23,
-      resetInSec: 2 * 3600 + 29 * 60,
-      status: 'ok',
+  it('maps the console fiveHour/week/month meters onto the chip windows', () => {
+    const usage = fromConsoleStatus({
+      access: {
+        meters: {
+          fiveHour: meter(2, 10_000_000, 2_300_000),
+          week: meter(96, 100_000_000, 80_000_000),
+          month: meter(290, 500_000_000, 500_000_000),
+        },
+      },
     })
-    expect(parsed.weekly).toEqual({
-      kind: 'weekly',
-      percent: 80,
-      resetInSec: 4 * 86400 + 6 * 3600,
-      status: 'ok',
-    })
-    expect(parsed.monthly).toEqual({
-      kind: 'monthly',
-      percent: 100,
-      resetInSec: 12 * 86400 + 4 * 3600,
-      status: 'rate-limited',
-    })
+    expect(usage.rolling).toEqual({ kind: 'rolling', percent: 23, resetInSec: 7200, status: 'ok' })
+    expect(usage.weekly?.percent).toBe(80)
+    expect(usage.weekly?.status).toBe('ok')
+    expect(usage.monthly?.percent).toBe(100)
+    expect(usage.monthly?.status).toBe('rate-limited')
   })
 
-  it('omits missing windows (new account / trial outside window)', () => {
-    const page = `
-      <div data-slot="usage-item">
-        <span data-slot="usage-label">Weekly Usage</span>
-        <span data-slot="usage-value"><!--$-->10<!--/-->%</span>
-        <span data-slot="reset-time"><!--$-->Resets in<!--/-->1 day<!--/--></span>
-      </div>`
-    const parsed = fromSSRHTML(page)
-    expect(parsed.rolling).toBeUndefined()
-    expect(parsed.weekly).toEqual({
-      kind: 'weekly',
-      percent: 10,
-      resetInSec: 86400,
-      status: 'ok',
-    })
-    expect(parsed.monthly).toBeUndefined()
+  it('omits a meter the body does not carry', () => {
+    const usage = fromConsoleStatus({ access: { meters: { week: meter(24, 1000, 100) } } })
+    expect(usage.rolling).toBeUndefined()
+    expect(usage.monthly).toBeUndefined()
+    expect(usage.weekly?.percent).toBe(10)
   })
 
-  it('returns an empty result for a login-redirect page', () => {
-    const parsed = fromSSRHTML('<html><body>Sign in to continue</body></html>')
-    expect(parsed.rolling).toBeUndefined()
-    expect(parsed.weekly).toBeUndefined()
-    expect(parsed.monthly).toBeUndefined()
+  it('treats an empty limit and a past reset as zero', () => {
+    const usage = fromConsoleStatus({
+      access: {
+        meters: { fiveHour: { resetsAt: new Date(Date.now() - 60_000).toISOString(), limitMicroCents: 0, usedMicroCents: 5 } },
+      },
+    })
+    expect(usage.rolling).toEqual({ kind: 'rolling', percent: 0, resetInSec: 0, status: 'ok' })
   })
 
-  it('ignores unknown usage labels', () => {
-    const page = `
-      <div data-slot="usage-item">
-        <span data-slot="usage-label">Something Else</span>
-        <span data-slot="usage-value"><!--$-->50<!--/-->%</span>
-      </div>`
-    const parsed = fromSSRHTML(page)
-    expect(parsed.rolling).toBeUndefined()
-    expect(parsed.weekly).toBeUndefined()
-    expect(parsed.monthly).toBeUndefined()
-  })
-
-  it('clamps percent into [0, 100]', () => {
-    const page = `
-      <div data-slot="usage-item">
-        <span data-slot="usage-label">Monthly Usage</span>
-        <span data-slot="usage-value"><!--$-->150<!--/-->%</span>
-      </div>`
-    const parsed = fromSSRHTML(page)
-    expect(parsed.monthly?.percent).toBe(100)
-  })
-
-  it('parses a zh-locale page (Chinese labels and reset phrases)', () => {
-    const zhPage = `
-      <div data-slot="usage-item">
-        <span data-slot="usage-label">滚动用量</span>
-        <span data-slot="usage-value"><!--$-->27<!--/-->%</span>
-        <span data-slot="reset-time"><!--$-->重置于<!--/-->3 小时 37 分钟<!--/--></span>
-      </div>
-      <div data-slot="usage-item">
-        <span data-slot="usage-label">每周用量</span>
-        <span data-slot="usage-value"><!--$-->15<!--/-->%</span>
-        <span data-slot="reset-time"><!--$-->重置于<!--/-->6 天 15 小时<!--/--></span>
-      </div>
-      <div data-slot="usage-item">
-        <span data-slot="usage-label">每月用量</span>
-        <span data-slot="usage-value"><!--$-->20<!--/-->%</span>
-        <span data-slot="reset-time"><!--$-->重置于<!--/-->15 天 17 小时<!--/--></span>
-      </div>`
-    const parsed = fromSSRHTML(zhPage)
-    expect(parsed.rolling).toEqual({
-      kind: 'rolling',
-      percent: 27,
-      resetInSec: 3 * 3600 + 37 * 60,
-      status: 'ok',
-    })
-    expect(parsed.weekly).toEqual({
-      kind: 'weekly',
-      percent: 15,
-      resetInSec: 6 * 86400 + 15 * 3600,
-      status: 'ok',
-    })
-    expect(parsed.monthly).toEqual({
-      kind: 'monthly',
-      percent: 20,
-      resetInSec: 15 * 86400 + 17 * 3600,
-      status: 'ok',
-    })
+  it('reports nosub for a null body or a body without meters', () => {
+    for (const body of [null, {}, { access: null }, { access: {} }]) {
+      expect(() => fromConsoleStatus(body)).toThrowError(UsageError)
+      try {
+        fromConsoleStatus(body)
+      } catch (error) {
+        expect((error as UsageError).code).toBe('nosub')
+      }
+    }
   })
 })
 
-describe('parseDurationToSec', () => {
-  it.each([
-    ['2 hours 29 minutes', 2 * 3600 + 29 * 60],
-    ['45 minutes', 45 * 60],
-    ['5 days', 5 * 86400],
-    ['30 seconds', 30],
-    ['1 week', 604800],
-    ['1 month', 2592000],
-    ['1 year', 31536000],
-    ['2 小时 29 分钟', 2 * 3600 + 29 * 60],
-    ['45 分钟', 45 * 60],
-    ['5 天', 5 * 86400],
-    ['30 秒', 30],
-    ['1 周', 604800],
-    ['1 个月', 2592000],
-    ['1 年', 31536000],
-    ['', 0],
-    ['garbage text', 0],
-  ])('parses %j → %i', (phrase, expected) => {
-    expect(parseDurationToSec(phrase)).toBe(expected)
+describe('fetchViaCookie', () => {
+  const cfg: OcgoConfig = {
+    cookie: 'auth=Fe26.2*test',
+    workspaceID: 'wrk_test',
+    baseUrl: 'https://opencode.ai',
+    cacheTTL: 300,
+    timeoutMs: 20_000,
+  }
+
+  afterEach(() => { vi.restoreAllMocks() })
+
+  it('reads the console status endpoint with the workspace header and maps the body', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      access: { meters: { fiveHour: { resetsAt: new Date(Date.now() + 3600_000).toISOString(), limitMicroCents: 100, usedMicroCents: 40 } } },
+    }), { status: 200, headers: { 'content-type': 'application/json' } }))
+    const usage = await fetchViaCookie(cfg)
+    expect(usage.rolling?.percent).toBe(40)
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toBe('https://opencode.ai/console/api/go/status')
+    expect((fetchSpy.mock.calls[0]?.[1] as RequestInit).headers).toMatchObject({ 'x-org-id': 'wrk_test' })
   })
 
-  it('handles embedded SolidStart comment markers', () => {
-    expect(parseDurationToSec('2<!--/--> hours 29<!--/--> minutes')).toBe(2 * 3600 + 29 * 60)
+  it('maps a 400 (missing workspace context) to the http400 code', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('Bad Request', { status: 400 }))
+    await expect(fetchViaCookie(cfg)).rejects.toMatchObject({ code: 'http400' })
+  })
+
+  it('maps a rejected cookie to the auth code', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('{"_tag":"Unauthorized"}', { status: 401 }))
+    await expect(fetchViaCookie(cfg)).rejects.toMatchObject({ code: 'auth' })
+  })
+
+  it('maps a sign-in redirect to the auth code', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(null, { status: 302, headers: { location: '/console/login' } }))
+    await expect(fetchViaCookie(cfg)).rejects.toMatchObject({ code: 'auth' })
+  })
+
+  it('reports a missing cookie or workspace id before any request', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch')
+    await expect(fetchViaCookie({ ...cfg, cookie: undefined })).rejects.toMatchObject({ code: 'noconfig' })
+    await expect(fetchViaCookie({ ...cfg, workspaceID: undefined })).rejects.toMatchObject({ code: 'noconfig' })
+    expect(fetchSpy).not.toHaveBeenCalled()
+  })
+
+  it('reports a non-JSON answer as a protocol failure', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response('<html>shell</html>', { status: 200 }))
+    await expect(fetchViaCookie(cfg)).rejects.toMatchObject({ code: 'protocol' })
   })
 })

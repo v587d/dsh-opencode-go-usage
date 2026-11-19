@@ -11,11 +11,8 @@
  */
 import type { PropsLocale, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots';
 import { NS } from './locales.ts';
-/** Composed props of the dock entry (runtime + locale + injected session/provider face). */
-export type OcgoDockEntryProps = PropsRuntime<'conversation.input.right'> & PropsLocale<typeof NS> & {
-    dockSessionId?: string | undefined;
-    provider?: () => Promise<string | undefined>;
-};
+/** Composed props of the dock entry: the session standard kit plus the locale seat. */
+export type OcgoDockEntryProps = PropsRuntime<'conversation.input.right'> & PropsLocale<typeof NS>;
 /**
  * Format a duration (seconds) compactly: 45s / 23m / 5h 23m / 4d 6h.
  */

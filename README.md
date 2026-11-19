@@ -19,10 +19,10 @@ OpenCode Go: 5h 0% (1h 23m) · wk 65% (2d 20h) · mo 83% (6d 21h) · upd 20:15
 ## 特性
 
 - **三个窗口** —— 5h 滚动 / 每周 / 每月 的百分比 + 重置倒计时
-- **颜色阈值** —— 正常 → 黄色警告（≥80%）→ 红色错误（≥90% 或已限流）
+- **状态色** —— 每个窗口前一个 6px 圆点：绿（<50%）→ 琥珀（50–79%）→ 红（≥80% 或已限流）；百分比数字平时保持中性，只在 ≥50% 时才染色、≥80% 加粗
 - **数据新鲜度** —— `upd HH:MM` 显示最近一次成功抓取时间
 - **轻量轮询** —— 每 10s 轮询（切回标签页立即刷新）；host 端 300s 缓存（TTL 可配）+ 60s 失败冷却，不会频繁打扰 opencode.ai
-- **Provider 感知** —— 仅当会话当前模型走 `opencode-go` provider 时显示；每次轮询读取内存中的实时模型选择（`session.models`，毫秒级），切到 DeepSeek 官方等其它 provider 后一个轮询周期内自动隐藏，切回自动恢复（与 pi-ocgo-usage 行为一致）
+- **Provider 感知** —— 仅当会话当前模型走 `opencode-go` provider 时显示；可见性读会话的 `modelSelection` 投影（host 计算、客户端按 key 缓存），切到 DeepSeek 官方等其它 provider 后立即隐藏，切回立即恢复（与 pi-ocgo-usage 行为一致）
 - **点击展开** —— 详情面板显示每个窗口的重置倒计时，左下角 `Set` 可配置凭据，右侧 `refresh upd HH:MM` 手动刷新
 - **内置凭据编辑器** —— 无需碰终端：`Set` 面板直接修改 workspace id 与 cookie（输入框以 `••••` + 末尾 4 位显示，点击外部 / Esc / 保存确认写入）
 - **优雅降级** —— 配置缺失显示 `<err:noconfig>`，HTTP 失败显示 `<err:httpXXX>`；出错时点击 chip 直接进入 Set 面板
@@ -32,7 +32,7 @@ OpenCode Go: 5h 0% (1h 23m) · wk 65% (2d 20h) · mo 83% (6d 21h) · upd 20:15
 
 ## 环境要求
 
-- DeepSeek Harness `0.1.0-rc.6` 或更新（web profile）
+- DeepSeek Harness `0.2.2-rc.1` 或更新（web profile；manifest 以 `engines.dsh` 声明）
 - `PATH` 上有 pnpm（`dsh plugin` 需要）
 
 ## 安装
@@ -58,8 +58,8 @@ dsh plugin --profile web add dsh-ocgo-usage
 ### 从 tarball 安装
 
 ```sh
-pnpm pack            # 在本仓库内 → dsh-ocgo-usage-0.1.0.tgz
-dsh plugin --profile web add ./dsh-ocgo-usage-0.1.0.tgz
+pnpm pack            # 在本仓库内 → dsh-ocgo-usage-0.2.0.tgz
+dsh plugin --profile web add ./dsh-ocgo-usage-0.2.0.tgz
 ```
 
 ### 本地开发安装
@@ -82,14 +82,14 @@ dsh --profile web --dump-config   # 应显示 "# == dsh-ocgo-usage" 层
 
 ### 方式一：界面内 Set 面板（最简单）
 
-点击 chip 展开详情 → 左下角 `Set` → 输入 workspace id 与 cookie（已设置的值以 `••••` + 末尾 4 位显示，聚焦即可输入新值）→ 点击外部 / Esc / 保存按钮确认，立即生效。
+点击 chip 展开详情 → 左下角 `Set` → 填 workspace id 并粘贴整段 cookie（已设置的值以 `••••` + 末尾 4 位显示，聚焦即可输入新值）→ 点击外部 / Esc / 保存按钮确认，立即生效。
 
 ![Set editor](assets/set-cookie-wid.png)
 
 ### 方式二：环境变量（与 pi-ocgo-usage 同名）
 
 ```sh
-export OPENCODE_GO_COOKIE="auth=Fe26.2*...; oc_locale=en"
+export OPENCODE_GO_COOKIE="auth=Fe26.2*...; __Host-console_session=st_..."
 export OPENCODE_GO_WORKSPACE_ID="wrk_01XXXXXXXXXXXXXXXXXXXXXXXX"
 ```
 
@@ -99,7 +99,7 @@ export OPENCODE_GO_WORKSPACE_ID="wrk_01XXXXXXXXXXXXXXXXXXXXXXXX"
 
 ```jsonc
 {
-  "cookie": "auth=Fe26.2*...; oc_locale=en",
+  "cookie": "auth=Fe26.2*...; __Host-console_session=st_...",
   "workspaceID": "wrk_01XXXXXXXXXXXXXXXXXXXXXXXX"
 }
 ```
@@ -116,7 +116,7 @@ chmod 600 ~/.dsh/ocgo-usage.json
 |---|---|---|
 | `OPENCODE_GO_BASE_URL` | `https://opencode.ai` | API 基础地址 |
 | `OPENCODE_GO_CACHE_TTL` | `300` | host 缓存秒数，范围 60–3600 |
-| `OPENCODE_GO_TIMEOUT_MS` | `10000` | HTTP 超时 |
+| `OPENCODE_GO_TIMEOUT_MS` | `20000` | HTTP 超时（慢链路 / 无代理时留余量） |
 
 组合层配置（`~/.dsh/profiles/web/cordis.patch.yml`）：
 
@@ -136,8 +136,8 @@ chmod 600 ~/.dsh/ocgo-usage.json
 
 ## 工作原理
 
-- **Host 半**（`src/index.ts`、`src/service.ts`、`src/api.ts`、`src/routes.ts`）—— 携带 cookie 抓取 `GET /workspace/<wrk>/go`，解析 SSR 渲染的 `data-slot="usage-item"` 块为每个窗口的 `{percent, resetInSec, status}`，缓存结果，通过同源 JSON 端点 `/api/ocgo-usage`（+ `/api/ocgo-usage/refresh`、`/api/ocgo-usage/config`）提供数据。
-- **浏览器半**（`src/client/`）—— 向 `conversation.composer.dock` slot 注册 chip，每 10s 轮询 host 端点，按严重级别着色渲染三个窗口；可见性来自 `session.models` 的实时 provider 判断。
+- **Host 半**（`src/index.ts`、`src/service.ts`、`src/api.ts`、`src/routes.ts`）—— 携带整段 cookie + `x-org-id: <wrk>` 读 `GET /console/api/go/status`，把 `access.meters.{fiveHour,week,month}` 的 `usedMicroCents / limitMicroCents` 与 `resetsAt` 映射为每个窗口的 `{percent, resetInSec, status}`，缓存结果，通过同源 JSON 端点 `/api/ocgo-usage`（+ `/api/ocgo-usage/refresh`、`/api/ocgo-usage/config`）提供数据。
+- **浏览器半**（`src/client/`）—— 向 `conversation.input.right` slot 注册 chip，每 10s 轮询 host 端点，按严重级别着色渲染三个窗口；可见性来自会话 `modelSelection` 投影里的 provider。
 
 浏览器永远看不到 cookie；抓取与解析全部在 host 侧完成。
 
@@ -163,6 +163,15 @@ pnpm test          # vitest run（解析器 / 配置 / 服务）
 MIT —— 见 [LICENSE](./LICENSE)。
 
 ## Changelog
+
+### 0.2.0 - 跟进 dsh 0.2.2 客户端 API
+
+- **运行时要求提升到 dsh `0.2.2-rc.1+`**：manifest 改用 `engines.dsh` 声明兼容范围，版本闸门不再由 peerDependencies 决定
+- **客户端 API 迁移**：`ClientContext` 改由 `@deepseek-ai/cordis` 提供；provider 判定改读会话 `modelSelection` 投影（0.2.2 已移除 `ctx.connection.api.sessions.models`），`dsh.client.inject` 与平台模块表对齐 0.2.2
+- **数据源迁移**：opencode.ai 的用量页已从 `/workspace/<wrk>/go` 的 SSR 页面改为 `/console/api/go/status` JSON（`access.meters.{fiveHour,week,month}`），不再抓 HTML；workspace id 改为以 `x-org-id` 请求头发送，cookie 则整段透传（控制台会话还需要 `__Host-console_session` 等 cookie）
+- **默认超时 10s → 20s**；配置 `0` 或负值回落默认值（此前会变成立即 abort）
+- **chip 配色**：新增状态圆点（绿/琥珀/红三档，阈值集中在 `src/client/severity.ts`），原来 50/60/70/80/90 五档文字渐变简化为三档
+- **不兼容 0.1.0-rc.6 及更早**：需要旧运行时请留在 0.1.1
 
 ### v2.0.0 - 中英双语支持
 
